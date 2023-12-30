@@ -31,6 +31,10 @@ import json
 # main Game Logic
 class GameConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        """
+        try to connect websocket
+        if success, then join room
+        """
         self.room_id = self.scope['url_route']['kwargs']['room_id']
         self.player_id = self
         self.room_group_name = f'game_{self.room_id}'
@@ -58,7 +62,23 @@ class GameConsumer(AsyncWebsocketConsumer):
         message = text_data_json['message']
         print(self.channel_name)
 
+        """
+        1. create room
+        2. join room
+        3. leave room
+        4. start game
+        5. player actions
+            5.1 
+            ...
+            5.9
+        6. vote werewolf
+        """
+
         if message_type == 'join':
+            """
+            获取玩家信息，便于之后通过房间组消息分发
+            """
+            self.user_id = message['user_id']
             RoomManager.join_room(self.room_id, self.channel_name)
             await self.channel_layer.group_send(
                 self.room_group_name,
