@@ -1,7 +1,7 @@
 # consumers.py
 
 from channels.generic.websocket import AsyncWebsocketConsumer
-from backend.wolfBackend.game.room_management import RoomManager
+from game.room_management import RoomManager
 import json
 
 # class GameRoom:
@@ -57,16 +57,22 @@ class GameConsumer(AsyncWebsocketConsumer):
     # 接收消息
     async def receive(self, text_data):
         print(text_data)
-        text_data_json = json.loads(text_data)
+        try:
+            text_data_json = json.loads(text_data)
+        except Exception as e:
+            print(e)
+
+
         message_type = text_data_json['type']
         message = text_data_json['message']
         print(self.channel_name)
 
         """
         1. create room
-        2. join room
-        3. leave room
+        2. join/leave room
+        3. change room settings
         4. start game
+            4.1 game initialization
         5. player actions
             5.1 
             ...
@@ -74,12 +80,28 @@ class GameConsumer(AsyncWebsocketConsumer):
         6. vote werewolf
         """
 
+        if message_type == 'create':
+            """
+            获取房主信息
+            根据设置创建游戏
+            TODO
+            如果房主离开，如何指定下一个房主
+            """
+            self.user_id = message['user_id']
+            RoomManager.join_room(self.room_id, self.channel_name)
+            RoomManager.create_game(self.room_id)
+            
+            await self.send(text_data=json.dumps({
+                'message': "success"
+            }))
+
         if message_type == 'join':
             """
             获取玩家信息，便于之后通过房间组消息分发
             """
             self.user_id = message['user_id']
             RoomManager.join_room(self.room_id, self.channel_name)
+            
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -87,6 +109,7 @@ class GameConsumer(AsyncWebsocketConsumer):
                     'message': f'Someone joined room {self.room_id}'
                 }
             )
+        
         
         print(RoomManager.rooms)
         '{"type": "join", "message": "123"}'
