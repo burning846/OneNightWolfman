@@ -1,4 +1,4 @@
-# 一夜终极狼人
+# One Night Ultimate Werewolf 一夜终极狼人
 
 ## TODOs
 
@@ -8,7 +8,7 @@
 
 ## Development Log
 
-## run
+## Run
 
 To use Django Channel Websocket features, we use uvicorn ASGI server as the backend server.
 ```bash
