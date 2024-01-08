@@ -1,63 +1,127 @@
 from game.game_management import GameManager
+from game.message import MessageType
 
 class RoomManager:
+    '''
+    room_id: {
+        is_in_game: bool,
+        settings: dict,
+        host: User,
+        max_player_num: int,
+        players: list[User],
+        game_maneger: GameManager,
+    }
+    '''
     rooms = {}
-    games = {}
 
     @classmethod
-    def create_room(cls, room_id, player) -> (bool, str):
-        if room_id not in cls.rooms:
-            cls.rooms[room_id] = [player]
-            return True, "success"
-        else:
+    def create_room(cls, player, room_id, settings) -> (bool, list[dict]|str):
+        if room_id  in cls.rooms:
             return False, "room already exists"
+        
+        messages = []
+        cls.rooms[room_id] = {
+            'is_in_game': False,
+            'settings': settings,
+            'host': player,
+            'max_player_num': settings['num_player'],
+            'players': [player],
+            'game_maneger': None,
+        }
+        messages.append({
+            'type': MessageType.CREATE_ROOM,
+            'message': room_id
+        })
+        return True, messages
+            
 
     @classmethod
-    def join_room(cls, room_id, player) -> (bool, str):
+    def join_room(cls, room_id, player) -> (bool, list[dict]|str):
+        messages = []
         if room_id not in cls.rooms:
             return False, "room doesn't exist"
-        cls.rooms[room_id].append(player)
-        return True, "success"
+        cls.rooms[room_id]['players'].append(player)
+        messages.append({
+            'type': MessageType.PLAYER_JOIN,
+            'message': {
+                'player': player,
+                'current_players': cls.rooms[room_id]['players'],
+            }
+        })
+        return True, messages
 
     @classmethod
-    def leave_room(cls, room_id, player) -> (bool, str):
-        if room_id in cls.rooms:
-            if player in cls.rooms[room_id]:
-                cls.rooms[room_id].remove(player)
-                if not cls.rooms[room_id]:
-                    del cls.rooms[room_id]
-                return True, "success"
-            else:
-                False, "player not in this room"
-        else:
-            False, "room doesn't exist"
-
-    @classmethod
-    def create_game(cls, room_id) -> (bool, str):
-        if room_id in cls.rooms and room_id not in cls.games:
-            cls.games[room_id] = GameManager()
-            return True, "success"
-        elif room_id not in cls.rooms:
+    def leave_room(cls, room_id, player) -> (bool, list[dict]|str):
+        if room_id not in cls.rooms:
             return False, "room doesn't exist"
-        elif room_id in cls.games:
-            return False, "game already exists"
-
-    @classmethod
-    def start_game(cls, room_id) -> (dict | None):
-        if room_id in cls.rooms and room_id not in cls.games:
-            game_manager = cls.games[room_id]
-            roles = game_manager.init()
-            return roles
+        if player not in cls.rooms[room_id]:
+            return False, "player not in this room"
+        
+        messages = []
+        cls.rooms[room_id]['players'].remove(player)
+        if not cls.rooms[room_id]['players']:
+            del cls.rooms[room_id]
         else:
-            return None
+            messages.append({
+                'type': MessageType.PLAYER_LEAVE,
+                'message': {
+                    'player': player,
+                    'current_players': cls.rooms[room_id]['players'],
+                }
+            })
+        if cls.rooms[room_id]['host'] == player:
+            cls.rooms[room_id]['host'] = cls.rooms[room_id]['players'][0]
+            messages.append({
+                'type': MessageType.HOST_CHANGE,
+                'message': {
+                    'player': cls.rooms[room_id]['host'],
+                }
+            })
+        return True, messages
+            
+            
 
     @classmethod
-    def end_game(cls, room_id) -> (bool, str):
-        if room_id in cls.rooms and room_id in cls.games:
-            del cls.games[room_id]
-            return True, "success"
-        elif room_id not in cls.rooms:
+    def start_game(cls, room_id) -> (bool, list[dict]|str):
+        if room_id not in cls.rooms:
             return False, "room doesn't exist"
-        elif room_id not in cls.games:
-            return False, "game doesn't exist"
+        
+        messages = []
+        game_manager = GameManager(
+            players=cls.rooms['room_id']['players'],
+            settings=cls.rooms['room_id']['settings'],
+        )
+        cls.rooms[room_id]['game_manager'] = game_manager
+        game_manager.game_init()
+        messages.append({
+            'type': MessageType.GAME_START,
+            'message':{
+                'roles': game_manager.roles
+            }
+        })
+        return True, messages
+            
+        
+    @classmethod
+    def run_game(cls, room_id, action) -> (bool, list[dict]|str):
+        if room_id not in cls.rooms:
+            return False, "room doesn't exist"
+        if 'game_manager' not in cls.rooms['room_id']:
+            return False, "game didn't start"
+
+        game_manager = cls.rooms['room_id']['game_manager']
+        messages = game_manager.game_run(action)
+        return True, messages
+            
+        
+
+    # @classmethod
+    # def end_game(cls, room_id) -> (bool, list[dict]|str):
+    #     if room_id in cls.rooms and room_id in cls.games:
+    #         del cls.games[room_id]
+    #         return True, "success"
+    #     elif room_id not in cls.rooms:
+    #         return False, "room doesn't exist"
+    #     elif room_id not in cls.games:
+    #         return False, "game doesn't exist"
 

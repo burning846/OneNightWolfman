@@ -1,7 +1,17 @@
 import random
+from game.charactors import CharactorId
 
 class GameStatus:
-    START = 0
+    DOPPELGANGER = 0
+    WEREWOLF = 1
+    MINION = 2
+    MASON = 3
+    SEER = 4
+    ROBBER = 5
+    TROUBLEMAKER = 6
+    DRUNK = 7
+    INSOMNIAC = 8
+    VOTE = 9
 
 
 class GameManager:
@@ -26,6 +36,25 @@ class GameManager:
     def game_init(self) -> None:
         self.num_players = len(self.players)
         self.roles = self._assign_roles()
+        self.status = GameStatus.START
+    
+    def _doppelganger_round(self, action):
+        target = action['target']
+
+
+    def game_run(self, action) -> dict | None:
+        '''
+        action: {
+            'player': User,
+            'target': list[int],
+        }
+        '''
+        # according to GameStatus choose corresponding function
+        # to deal with the player action
+        if (self.status == GameStatus.DOPPELGANGER and 
+            action['role'] == CharactorId.DOPPELGANGER):
+            return self._doppelganger_round(self, action)
+        return False
         
 
 if __name__ == "__main__":
