@@ -29,8 +29,11 @@ class RoomManager:
             'game_maneger': None,
         }
         messages.append({
-            'type': MessageType.CREATE_ROOM,
-            'message': room_id
+            'type': 'group_message',
+            'message': {
+                'type': MessageType.CREATE_ROOM,
+                'room_id': room_id
+            }
         })
         return True, messages
             
@@ -42,8 +45,9 @@ class RoomManager:
             return False, "room doesn't exist"
         cls.rooms[room_id]['players'].append(player)
         messages.append({
-            'type': MessageType.PLAYER_JOIN,
+            'type': 'group_message', 
             'message': {
+                'type': MessageType.PLAYER_JOIN,
                 'player': player,
                 'current_players': cls.rooms[room_id]['players'],
             }
@@ -63,8 +67,9 @@ class RoomManager:
             del cls.rooms[room_id]
         else:
             messages.append({
-                'type': MessageType.PLAYER_LEAVE,
+                'type': 'group_message',
                 'message': {
+                    'type': MessageType.PLAYER_LEAVE,
                     'player': player,
                     'current_players': cls.rooms[room_id]['players'],
                 }
@@ -72,8 +77,9 @@ class RoomManager:
         if cls.rooms[room_id]['host'] == player:
             cls.rooms[room_id]['host'] = cls.rooms[room_id]['players'][0]
             messages.append({
-                'type': MessageType.HOST_CHANGE,
+                'type': 'group_message',
                 'message': {
+                    'type': MessageType.HOST_CHANGE,
                     'player': cls.rooms[room_id]['host'],
                 }
             })
@@ -93,12 +99,15 @@ class RoomManager:
         )
         cls.rooms[room_id]['game_manager'] = game_manager
         game_manager.game_init()
-        messages.append({
-            'type': MessageType.GAME_START,
-            'message':{
-                'roles': game_manager.roles
-            }
-        })
+        for player, role in game_manager.roles.items():
+            messages.append({
+                'type': 'individual_message',
+                'target': [player, ],
+                'message':{
+                    'type': MessageType.GAME_START,
+                    'roles': role
+                }
+            })
         return True, messages
             
         

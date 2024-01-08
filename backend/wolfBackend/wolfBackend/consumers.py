@@ -89,29 +89,17 @@ class GameConsumer(AsyncWebsocketConsumer):
             如果房主离开，如何指定下一个房主
             """
             self.user_id = message['user_id']
-            RoomManager.create_room(self.room_id, self.channel_name)
-            
-            await self.send(text_data=json.dumps({
-                'message': "success"
-            }))
+            success, messages = RoomManager.create_room(self.room_id, self.channel_name)
 
         if message_type == MessageType.PLAYER_JOIN:
             """
             获取玩家信息，便于之后通过房间组消息分发
             """
             self.user_id = message['user_id']
-            RoomManager.join_room(self.room_id, self.channel_name)
-            
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'announce_join',
-                    'message': f'Someone joined room {self.room_id}'
-                }
-            )
+            success, messages = RoomManager.join_room(self.room_id, self.channel_name)
         
         if message_type == MessageType.GAME_START:
-            RoomManager.start_game(self.room_id)
+            success, messages = RoomManager.start_game(self.room_id)
 
         if message_type in [
             MessageType.DOPPELGANGER_TURN,
@@ -125,7 +113,17 @@ class GameConsumer(AsyncWebsocketConsumer):
             MessageType.INSOMNIAC_TURN,
             MessageType.VOTE_STAGE
         ]:
-            RoomManager.run_game(self.room_id, message)
+            success, messages = RoomManager.run_game(self.room_id, message)
+
+        if success:
+            for message in messages:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    message
+                )
+        else:
+            # Log error
+            print(messages)
         
         # print(RoomManager.rooms)
         # '{"type": "join", "message": "123"}'
@@ -142,7 +140,7 @@ class GameConsumer(AsyncWebsocketConsumer):
     ###########################
     # send message to players
     ###########################
-    async def announce_join(self, event):
+    async def group_message(self, event):
         message = event['message']
         await self.send(text_data=json.dumps({
             'type': 'announcement',
@@ -150,10 +148,12 @@ class GameConsumer(AsyncWebsocketConsumer):
         }))
 
     # 接收房间组中的消息
-    async def game_message(self, event):
+    async def individual_message(self, event):
+        target = event['target']
         message = event['message']
-
-        # 发送消息到 WebSocket
-        await self.send(text_data=json.dumps({
-            'message': message
-        }))
+        if self.player_id in target:
+            # 发送消息到 WebSocket
+            await self.send(text_data=json.dumps({
+                'type': 'secret',
+                'message': message
+            }))
