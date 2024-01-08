@@ -15,6 +15,29 @@ To use Django Channel Websocket features, we use uvicorn ASGI server as the back
 uvicorn wolfBackend.asgi:application
 ```
 
+## Game Logic
+
+### Charactors
+```
+- DOPPELGANGER = 0    # 化身幽灵
+- WEREWOLF  = 1       # 狼人
+- MINION = 2          # 爪牙
+- MASON = 3           # 守夜人
+- SEER = 4            # 预言家
+- ROBBER = 5          # 强盗
+- TROUBLEMAKER = 6    # 捣蛋鬼
+- DRUNK = 7           # 酒鬼
+- INSOMNIAC = 8       # 失眠者
+- VILLAGER = 9        # 村民
+- HUNTER = 10         # 猎人
+- TANNER = 11         # 皮匠
+```
+
+### Order
+
+```
+
+```
 
 ## Notes
 前端：
