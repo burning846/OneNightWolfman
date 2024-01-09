@@ -89,7 +89,8 @@ class GameConsumer(AsyncWebsocketConsumer):
             如果房主离开，如何指定下一个房主
             """
             self.user_id = message['user_id']
-            success, messages = RoomManager.create_room(self.room_id, self.channel_name)
+            settings = message['settings']
+            success, messages = RoomManager.create_room(self.user_id, self.room_id, settings)
 
         if message_type == MessageType.PLAYER_JOIN:
             """
@@ -99,7 +100,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             success, messages = RoomManager.join_room(self.room_id, self.channel_name)
         
         if message_type == MessageType.GAME_START:
-            success, messages = RoomManager.start_game(self.room_id)
+            success, messages = RoomManager.start_game(self.room_id, self.channel_layer, self.room_group_name)
 
         if message_type in [
             MessageType.DOPPELGANGER_TURN,

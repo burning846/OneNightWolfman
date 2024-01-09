@@ -84,11 +84,30 @@ class RoomManager:
                 }
             })
         return True, messages
+    
+    @classmethod
+    def set_settings(cls, room_id, player, settings):
+        if room_id not in cls.rooms:
+            return False, "room doesn't exist"
+        if player != cls.rooms[room_id]['host']:
+            return False, "Permission denied"
+        
+        cls.rooms[room_id]['settings'] = settings
+        cls.rooms[room_id]['max_player_num'] = settings['num_player']
+        messages = []
+        messages.append({
+            'type': 'group_message',
+            'message': {
+                'type': MessageType.SET_SETTINGS,
+                'settings': settings
+            }
+        })
+        return True, messages
             
             
 
     @classmethod
-    def start_game(cls, room_id) -> (bool, list[dict]|str):
+    def start_game(cls, room_id, channel_layer, room_group_name) -> (bool, list[dict]|str):
         if room_id not in cls.rooms:
             return False, "room doesn't exist"
         
@@ -96,18 +115,11 @@ class RoomManager:
         game_manager = GameManager(
             players=cls.rooms['room_id']['players'],
             settings=cls.rooms['room_id']['settings'],
+            channel_layer=channel_layer,
+            room_group_name=room_group_name,
         )
         cls.rooms[room_id]['game_manager'] = game_manager
-        game_manager.game_init()
-        for player, role in game_manager.roles.items():
-            messages.append({
-                'type': 'individual_message',
-                'target': [player, ],
-                'message':{
-                    'type': MessageType.GAME_START,
-                    'roles': role
-                }
-            })
+        messages = game_manager.game_run({})
         return True, messages
             
         
