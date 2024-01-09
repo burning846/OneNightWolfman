@@ -34,6 +34,27 @@ uvicorn wolfBackend.asgi:application
 - TANNER = 11         # 皮匠
 ```
 
+### Game settings
+
+```json
+{
+    "interval": 15,
+    "num_players": 8,
+    "roles": {
+        "doppelganger": 0,
+        "werewolf": 2,
+        "minion": 1,
+        "mason": 2,
+        "seer": 1,
+        "robber": 1,
+        "troublemaker": 1,
+        "drunk": 1,
+        "insomniac": 1,
+        "hunter": 1,
+    }
+}
+```
+
 ## Notes
 前端：
 - 用户注册登录
