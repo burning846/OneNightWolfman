@@ -102,18 +102,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         if message_type == MessageType.GAME_START:
             success, messages = RoomManager.start_game(self.room_id, self.channel_layer, self.room_group_name)
 
-        if message_type in [
-            MessageType.DOPPELGANGER_TURN,
-            MessageType.WEREWOLF_TURN,
-            MessageType.MINION_TURN,
-            MessageType.MASON_TURN,
-            MessageType.SEER_TURN,
-            MessageType.ROBBER_TURN,
-            MessageType.TROUBLEMAKER_TURN,
-            MessageType.DRUNK_TURN,
-            MessageType.INSOMNIAC_TURN,
-            MessageType.VOTE_STAGE
-        ]:
+        if message_type == MessageType.GAME_ACTION:
             success, messages = RoomManager.run_game(self.room_id, message)
 
         if success:

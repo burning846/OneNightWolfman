@@ -5,6 +5,7 @@ class MessageType:
     HOST_CHANGE = 2
     CREATE_ROOM = 14
     SET_SETTINGS = 15
+    GAME_ACTION = 21
 
     # game related
     GAME_START = 3
@@ -22,3 +23,7 @@ class MessageType:
     DOPPELGANGER_TROUBLEMAKER_TURN = 17
     DOPPELGANGER_DRUNK_TURN = 18
     VOTE_STAGE = 19
+    NEXT_STAGE = 20
+
+class MessageText:
+    INVALID_TARGET = "invalid_target"
