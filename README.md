@@ -55,6 +55,19 @@ uvicorn wolfBackend.asgi:application
 }
 ```
 
+### Message
+```json
+{
+    "type": 3,
+    "message": {
+        "settings": {},
+        "player": "",
+        "player_index": 0,
+        "target": [],
+    }
+}
+```
+
 ## Notes
 前端：
 - 用户注册登录
