@@ -57,63 +57,60 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     # 接收消息
     async def receive(self, text_data):
-        print(text_data)
         try:
+            print(text_data)
             text_data_json = json.loads(text_data)
-        except Exception as e:
-            print(e)
 
+            message_type = text_data_json['type']
+            message = text_data_json['message']
+            print(self.channel_name)
 
-        message_type = text_data_json['type']
-        message = text_data_json['message']
-        print(self.channel_name)
-
-        """
-        1. create room
-        2. join/leave room
-        3. change room settings
-        4. start game
-            4.1 game initialization
-        5. player actions
-            5.1 
-            ...
-            5.9
-        6. vote werewolf
-        """
-
-        if message_type == MessageType.CREATE_ROOM:
             """
-            获取房主信息
-            根据设置创建游戏
-            TODO
-            如果房主离开，如何指定下一个房主
+            1. create room
+            2. join/leave room
+            3. change room settings
+            4. start game
+                4.1 game initialization
+            5. player actions
+                5.1 
+                ...
+                5.9
+            6. vote werewolf
             """
-            self.user_id = message['user_id']
-            settings = message['settings']
-            success, messages = RoomManager.create_room(self.user_id, self.room_id, settings)
 
-        if message_type == MessageType.PLAYER_JOIN:
-            """
-            获取玩家信息，便于之后通过房间组消息分发
-            """
-            self.user_id = message['user_id']
-            success, messages = RoomManager.join_room(self.room_id, self.channel_name)
-        
-        if message_type == MessageType.GAME_START:
-            success, messages = RoomManager.start_game(self.room_id, self.channel_layer, self.room_group_name)
+            if message_type == MessageType.CREATE_ROOM:
+                """
+                获取房主信息
+                根据设置创建游戏
+                TODO
+                如果房主离开，如何指定下一个房主
+                """
+                self.user_id = message['user_id']
+                settings = message['settings']
+                success, messages = RoomManager.create_room(self.user_id, self.room_id, settings)
 
-        if message_type == MessageType.GAME_ACTION:
-            success, messages = RoomManager.run_game(self.room_id, message)
+            if message_type == MessageType.PLAYER_JOIN:
+                """
+                获取玩家信息，便于之后通过房间组消息分发
+                """
+                self.user_id = message['user_id']
+                success, messages = RoomManager.join_room(self.room_id, self.channel_name)
+            
+            if message_type == MessageType.GAME_START:
+                success, messages = RoomManager.start_game(self.room_id, self.channel_layer, self.room_group_name)
 
-        if success:
-            for message in messages:
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    message
-                )
-        else:
-            # Log error
-            print(messages)
+            if message_type == MessageType.GAME_ACTION:
+                success, messages = RoomManager.run_game(self.room_id, message)
+
+            if success:
+                for message in messages:
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        message
+                    )
+            else:
+                # Log error
+                print(messages)
         
         # print(RoomManager.rooms)
         # '{"type": "join", "message": "123"}'
@@ -126,6 +123,12 @@ class GameConsumer(AsyncWebsocketConsumer):
         #         'message': message
         #     }
         # )
+        except Exception as e:
+            print(e)
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Unknown Error'
+            }))
 
     ###########################
     # send message to players
