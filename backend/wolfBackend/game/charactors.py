@@ -1,8 +1,8 @@
 class CharactorBase:
     def __init__(self, c_id, name, show) -> None:
         self.c_id = c_id
-        self.name = name # 身份
-        self.show = show # 底牌
+        self.name = name # 实际身份
+        self.show = show # 牌面名称
 
 class Charactor:
     DOPPELGANGER = CharactorBase(0, 'doppelganger', 'doppelganger')    # 化身幽灵

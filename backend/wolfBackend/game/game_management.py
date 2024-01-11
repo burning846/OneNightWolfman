@@ -2,7 +2,7 @@ import random
 import threading
 import copy
 from game.charactors import Charactor
-from game.message import MessageType
+from game.message import MessageType, MessageText
 from game.game_utils import Constant
 
 class GameStatusBase:
@@ -56,8 +56,10 @@ class GameManager:
         self.roles = self._assign_roles()           # List[Charactor]
         self.turns = self._get_turns()              # List[GameStatus]
         self.num_players = len(self.players)
+        self.public_index = [self.num_players, self.num_players+1, self.num_players+2]
         self.original_roles = copy.deepcopy(self.roles)
         self.action_done = False
+        self.votes = {}
         self.logs = []
         self.game_process_mapping = {
             GameStatus.START: self._game_start,
@@ -72,6 +74,7 @@ class GameManager:
             GameStatus.DRUNK: self._drunk_prepare,
             GameStatus.INSOMNIAC: self._insomniac_prepare,
             GameStatus.VOTE: self._vote_prepare,
+            GameStatus.END: self._game_end,
         }
         self.action_process_mapping = {
             GameStatus.DOPPELGANGER: self._doppelganger_turn,
@@ -87,6 +90,15 @@ class GameManager:
 
         # Game Variable
         self.werewolf_cnt = 0
+
+    def _next_stage(self):
+        # time up without user action
+        if not self.action_done:
+            pass
+        
+        self.status_idx += 1
+        self.game_process_mapping[self.turns[self.status_idx]]()
+        return
     
     def __make_message(self, type, data):
         return {
@@ -113,16 +125,16 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.DOPPELGANGER.name,
                     'interval': self.interval
                 }
             }
         })
-        for idx in range(len(players)):
-            if self.roles[idx] in [Charactor.DOPPELGANGER_WEREWOLF, Charactor.WEREWOLF]:
-                werewolf_cnt += 1
-        threading.Timer(self.interval, self._time_up)
+        for message in messages:
+            self._send_message(message)
+        threading.Timer(self.interval, self._next_stage)
         return
 
     def _doppelganger_action_turn_prepare(self):
@@ -131,16 +143,16 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.DOPPELGANGER_ACTION.name,
                     'interval': self.interval
                 }
             }
         })
-        for idx in range(len(players)):
-            if self.roles[idx] in [Charactor.DOPPELGANGER_WEREWOLF, Charactor.WEREWOLF]:
-                werewolf_cnt += 1
-        threading.Timer(self.interval, self._time_up)
+        for message in messages:
+            self._send_message(message)
+        threading.Timer(self.interval, self._next_stage)
         return
 
     def _werewolf_prepare(self):
@@ -149,6 +161,7 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.WEREWOLF.name,
                     'interval': self.interval
@@ -157,7 +170,7 @@ class GameManager:
         })
         werewolf_cnt = 0
         werewolf_roles_info = {}
-        for idx in range(len(self.players)):
+        for idx in range(self.num_players):
             if self.roles[idx] in [Charactor.DOPPELGANGER_WEREWOLF, Charactor.WEREWOLF]:
                 werewolf_cnt += 1
                 werewolf_roles_info[idx] = {
@@ -171,6 +184,7 @@ class GameManager:
                 'target': self.players[idx],
                 'message': {
                     'type': MessageType.WEREWOLF_TURN,
+                    'message': MessageText.SUCCESS,
                     'data': {
                         'roles': werewolf_roles_info
                     }
@@ -179,7 +193,7 @@ class GameManager:
         
         for message in messages:
             self._send_message(message)
-        threading.Timer(self.interval, self._time_up)
+        threading.Timer(self.interval, self._next_stage)
         return
 
     def _minion_prepare(self):
@@ -188,6 +202,7 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.MINION.name,
                     'interval': self.interval
@@ -196,19 +211,20 @@ class GameManager:
         })
 
         werewolf_roles_info = {}
-        for idx in range(len(self.players)):
+        for idx in range(self.num_players):
             if self.roles[idx] in [Charactor.DOPPELGANGER_WEREWOLF, Charactor.WEREWOLF]:
                 werewolf_roles_info[idx] = {
                     'player': self.players[idx],
                     'role': 'werewolf'
                 }
         minion_idx = self.roles.index(Charactor.MINION)
-        if minion_idx < len(self.players):
+        if minion_idx < self.num_players:
             messages.append({
                 'type': 'individual_message',
                 'target': self.players[minion_idx],
                 'message': {
                     'type': MessageType.MINION_TURN,
+                    'message': MessageText.SUCCESS,
                     'data': {
                         'roles': werewolf_roles_info
                     }
@@ -218,7 +234,7 @@ class GameManager:
         
         for message in messages:
             self._send_message(message)
-        threading.Timer(self.interval, self._time_up)
+        threading.Timer(self.interval, self._next_stage)
         return
 
     def _mason_prepare(self):
@@ -227,6 +243,7 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.MASON.name,
                     'interval': self.interval
@@ -235,7 +252,7 @@ class GameManager:
         })
 
         mason_roles_info = {}
-        for idx in range(len(self.players)):
+        for idx in range(self.num_players):
             if self.roles[idx] in [Charactor.DOPPELGANGER_MASON, Charactor.MASON]:
                 mason_roles_info[idx] = {
                     'player': self.players[idx],
@@ -247,6 +264,7 @@ class GameManager:
                 'target': self.players[idx],
                 'message': {
                     'type': MessageType.MASON_TURN,
+                    'message': MessageText.SUCCESS,
                     'data': {
                         'roles': mason_roles_info
                     }
@@ -255,7 +273,7 @@ class GameManager:
         
         for message in messages:
             self._send_message(message)
-        threading.Timer(self.interval, self._time_up)
+        threading.Timer(self.interval, self._next_stage)
         return
     
     def _seer_prepare(self):
@@ -264,6 +282,7 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.SEER.name,
                     'interval': self.interval
@@ -272,7 +291,7 @@ class GameManager:
         })
         for message in messages:
             self._send_message(message)
-        threading.Timer(self.interval, self._time_up)
+        threading.Timer(self.interval, self._next_stage)
         return
     
     def _robber_prepare(self):
@@ -281,6 +300,7 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.ROBBER.name,
                     'interval': self.interval
@@ -289,7 +309,7 @@ class GameManager:
         })
         for message in messages:
             self._send_message(message)
-        threading.Timer(self.interval, self._time_up)
+        threading.Timer(self.interval, self._next_stage)
         return
     
     def _troublemaker_prepare(self):
@@ -298,6 +318,7 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.TROUBLEMAKER.name,
                     'interval': self.interval
@@ -306,7 +327,7 @@ class GameManager:
         })
         for message in messages:
             self._send_message(message)
-        threading.Timer(self.interval, self._time_up)
+        threading.Timer(self.interval, self._next_stage)
         return
     
     def _drunk_prepare(self):
@@ -315,6 +336,7 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.DRUNK.name,
                     'interval': self.interval
@@ -323,7 +345,7 @@ class GameManager:
         })
         for message in messages:
             self._send_message(message)
-        threading.Timer(self.interval, self._time_up)
+        threading.Timer(self.interval, self._next_stage)
         return
     
     def _insomniac_prepare(self):
@@ -332,18 +354,20 @@ class GameManager:
             'type': 'group_message',
             'message': {
                 'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
                 'data': {
                     'status': GameStatus.SEER.name,
                     'interval': self.interval
                 }
             }
         })
-        for idx in range(len(self.players)):
+        for idx in range(self.num_players):
             if self.original_roles[idx] in [Charactor.INSOMNIAC, Charactor.DOPPELGANGER_INSOMNIAC]:
                 messages.append({
                     'type': 'individual_message',
                     'message': {
                         'type': MessageType.INSOMNIAC_TURN,
+                        'message': MessageText.SUCCESS,
                         'data': {
                             'roles': {
                                 idx: {
@@ -356,13 +380,58 @@ class GameManager:
                 })
         for message in messages:
             self._send_message(message)
-        threading.Timer(self.interval, self._time_up)
+        threading.Timer(self.interval, self._next_stage)
         return
     
     def _vote_prepare(self):
-        pass
+        messages = []
+        messages.append({
+            'type': 'group_message',
+            'message': {
+                'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
+                'data': {
+                    'status': GameStatus.VOTE.name,
+                    'interval': self.interval
+                }
+            }
+        })
+        for message in messages:
+            self._send_message(message)
+
+    def _game_end(self):
+        messages = []
+        roles = {}
+        original_roles = {}
+        for idx in len(self.roles):
+            roles[idx] = {
+                'player': self.players[idx],
+                'role': self.roles[idx].show
+            }
+            original_roles[idx] = {
+                'player': self.players[idx],
+                'role': self.original_roles[idx].name
+            }
+        messages.append({
+            'type': 'group_message',
+            'message': {
+                'type': MessageType.NEXT_STAGE,
+                'message': MessageText.SUCCESS,
+                'data': {
+                    'status': GameStatus.VOTE.name,
+                    'interval': self.interval,
+                    'roles': roles,
+                    'original_roles': original_roles,
+                }
+            }
+        })
+        for message in messages:
+            self._send_message(message)
 
     def _doppelganger_turn(self, action):
+        '''
+        choose target
+        '''
         current_player = action['player']
         current_player_idx = action['player_index']
         target = action['target'][0]
@@ -390,30 +459,141 @@ class GameManager:
         if target_charactor == Charactor.TANNER:
             self.roles[current_player_idx] = Charactor.DOPPELGANGER_TANNER
         
+        self.original_roles = copy.deepcopy(self.roles)
+
         messages = []
         messages.append({
             'type': 'individual_message',
             'target': current_player,
             'message': {
-                'roles': {
-                    current_player_idx: {
-                        'player': current_player,
-                        'role': self.roles[current_player_idx],
+                'type': MessageType.DOPPELGANGER_TURN,
+                'message': MessageText.SUCCESS,
+                'data': {
+                    'roles': {
+                        current_player_idx: {
+                            'player': current_player,
+                            'role': self.roles[current_player_idx],
+                        }
                     }
                 }
             }
         })
         return True, messages
     
-    async def _time_up(self):
-        # time up without user action
-        if not self.action_done:
-            pass
+    def _doppelganger_action_turn(self, action):
+        current_player = action['player']
+        current_player_idx = action['player_index']
+        target = action['target']
+        messages = []
+        if self.original_roles[current_player_idx] == Charactor.DOPPELGANGER_SEER:
+            if len(target) == 1 and target[0] in list(range(self.num_players)):
+                messages.append({
+                    'type': 'individual_message',
+                    'message': {
+                        'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                        'message': MessageText.SUCCESS,
+                        'data': {
+                            'roles': {
+                                target[0]: {
+                                    'player': self.players[target[0]],
+                                    'role': self.roles[target[0]].show
+                                }
+                            }
+                        }
+                    }
+                })
+            elif len(target) == 2 and target[0] in self.public_index and target[1] in self.public_index:
+                messages.append({
+                    'type': 'individual_message',
+                    'message': {
+                        'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                        'message': MessageText.SUCCESS,
+                        'data': {
+                            'roles': {
+                                target[0]: {
+                                    'player': 'public',
+                                    'role': self.roles[target[0]].name
+                                },
+                                target[1]: {
+                                    'player': 'public',
+                                    'role': self.roles[target[1]].name
+                                }
+                            }
+                        }
+                    }
+                })
+            else:
+                return False, "Invalid action"
+        elif self.original_roles[current_player_idx] == Charactor.DOPPELGANGER_ROBBER:
+            if len(target) == 1 and target[0] in list(range(self.num_players)):
+                current_role = self.roles[current_player_idx]
+                target_role = self.roles[target[0]]
+                self.roles[current_player_idx] = target_role
+                self.roles[target[0]] = current_role
+                messages.append({
+                    'type': 'individual_message',
+                    'message': {
+                        'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                        'message': MessageText.SUCCESS,
+                        'data': {
+                            'roles': {
+                                target[0]: {
+                                    'player': self.players[target[0]],
+                                    'role': self.roles[target[0]].name
+                                },
+                                current_player_idx: {
+                                    'player': self.players[current_player_idx],
+                                    'role': self.roles[current_player_idx].name
+                                }
+                            }
+                        }
+                    }
+                })
+            else:
+                return False, "Invalid action"
+        elif self.original_roles[current_player_idx] == Charactor.DOPPELGANGER_TROUBLEMAKER:
+            if len(target) == 2 and target[0] in list(range(self.num_players)) and target[1] in list(range(self.num_players)):
+                target_0 = target[0]
+                target_1 = target[1]
+                target_0_role = self.roles[target_0]
+                target_1_role = self.roles[target_1]
+                self.roles[target_0] = target_1_role
+                self.roles[target_1] = target_0_role
+                messages.append({
+                    'type': 'individual_message',
+                    'message': {
+                        'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                        'message': MessageText.SUCCESS,
+                        'data': {}
+                    }
+                })
+            else:
+                return False, "Invalid action"
+        elif self.original_roles[current_player_idx] == Charactor.DOPPELGANGER_DRUNK:
+            if len(target) == 1 and target[0] in self.public_index:
+                current_role = self.roles[current_player_idx]
+                target_role = self.roles[target[0]]
+                self.roles[current_player_idx] = target_role
+                self.roles[target[0]] = current_role
+                messages.append({
+                    'type': 'individual_message',
+                    'message': {
+                        'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                        'message': MessageText.SUCCESS,
+                        'data': {
+                            'roles': {
+                                target[0]: {
+                                    'player': 'public',
+                                    'role': self.roles[target[0]].name
+                                }
+                            }
+                        }
+                    }
+                })
+            else:
+                return False, "Invalid action"
         
-        self.status_idx += 1
-        self.game_process_mapping[self.turns[self.status_idx]]()
-        return
-
+        return True, messages
 
     def _werewolf_turn(self, action):
         '''
@@ -421,40 +601,174 @@ class GameManager:
         '''
         if self.werewolf_cnt == 1:
             target = action['target']
-            roles_info = {}
-            for t in target:
-                if t not in list(range(len(self.players), len(self.players) + 3)):
-                    return False, "Invalid Target"
-                roles_info[t] = {'role': self.roles[t]}
-            messages = []
+            if len(target) == 2 and target[0] in self.public_index and target[1] in self.public_index:
+                messages = []
+                messages.append({
+                    'type': 'individual_message',
+                    'message': {
+                        'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                        'message': MessageText.SUCCESS,
+                        'data': {
+                            'roles': {
+                                target[0]: {
+                                    'player': 'public',
+                                    'role': self.roles[target[0]].show
+                                },
+                                target[1]: {
+                                    'player': 'public',
+                                    'role': self.roles[target[1]].show
+                                }
+                            }
+                        }
+                    }
+                })
+                return True, messages
+            else:
+                return False, "Invalid action"
+        else:
+            return False, "Only 1 Werewolf can check roles"
+
+    def _seer_turn(self, action):
+        target = action['target']
+        messages = []
+        if len(target) == 1 and target[0] in list(range(self.num_players)):
             messages.append({
                 'type': 'individual_message',
                 'message': {
-                    'roles': roles_info,
+                    'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                    'message': MessageText.SUCCESS,
+                    'data': {
+                        'roles': {
+                            target[0]: {
+                                'player': self.players[target[0]],
+                                'role': self.roles[target[0]].show
+                            }
+                        }
+                    }
                 }
             })
-            return True, messages
+        elif len(target) == 2 and target[0] in self.public_index and target[1] in self.public_index:
+            messages.append({
+                'type': 'individual_message',
+                'message': {
+                    'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                    'message': MessageText.SUCCESS,
+                    'data': {
+                        'roles': {
+                            target[0]: {
+                                'player': 'public',
+                                'role': self.roles[target[0]].name
+                            },
+                            target[1]: {
+                                'player': 'public',
+                                'role': self.roles[target[1]].name
+                            }
+                        }
+                    }
+                }
+            })
         else:
-            return False, "Only 1 Werewolf can check roles"
+            return False, "Invalid action"
         
-    def _doppelganger_action_turn(self, action):
-        pass
-    def _minion_turn(self, action):
-        pass
-    def _mason_turn(self, action):
-        pass
-    def _seer_turn(self, action):
-        pass
     def _robber_turn(self, action):
-        pass
+        current_player_idx = action['player_index']
+        target = action['target']
+        messages = []
+        if len(target) == 1 and target[0] in list(range(self.num_players)):
+            current_role = self.roles[current_player_idx]
+            target_role = self.roles[target[0]]
+            self.roles[current_player_idx] = target_role
+            self.roles[target[0]] = current_role
+            messages.append({
+                'type': 'individual_message',
+                'message': {
+                    'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                    'message': MessageText.SUCCESS,
+                    'data': {
+                        'roles': {
+                            target[0]: {
+                                'player': self.players[target[0]],
+                                'role': self.roles[target[0]].name
+                            },
+                            current_player_idx: {
+                                'player': self.players[current_player_idx],
+                                'role': self.roles[current_player_idx].name
+                            }
+                        }
+                    }
+                }
+            })
+        else:
+            return False, "Invalid action"
+        
     def _troublemaker_turn(self, action):
-        pass
+        target = action['target']
+        messages = []
+        if len(target) == 2 and target[0] in list(range(self.num_players)) and target[1] in list(range(self.num_players)):
+            target_0 = target[0]
+            target_1 = target[1]
+            target_0_role = self.roles[target_0]
+            target_1_role = self.roles[target_1]
+            self.roles[target_0] = target_1_role
+            self.roles[target_1] = target_0_role
+            messages.append({
+                'type': 'individual_message',
+                'message': {
+                    'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                    'message': MessageText.SUCCESS,
+                    'data': {}
+                }
+            })
+        else:
+            return False, "Invalid action"
     def _drunk_turn(self, action):
-        pass
-    def _insomniac_turn(self, action):
-        pass
+        target = action['target']
+        messages = []
+        current_player_idx = action['player_index']
+        if len(target) == 1 and target[0] in self.public_index:
+            current_role = self.roles[current_player_idx]
+            target_role = self.roles[target[0]]
+            self.roles[current_player_idx] = target_role
+            self.roles[target[0]] = current_role
+            messages.append({
+                'type': 'individual_message',
+                'message': {
+                    'type': MessageType.DOPPELGANGER_ACTION_TURN,
+                    'message': MessageText.SUCCESS,
+                    'data': {
+                        'roles': {
+                            target[0]: {
+                                'player': 'public',
+                                'role': self.roles[target[0]].name
+                            }
+                        }
+                    }
+                }
+            })
+        else:
+            return False, "Invalid action"
+        
     def _vote_stage(self, action):
-        pass
+        current_player_idx = action['player_index']
+        target = action['target']
+        messages = []
+        if len(target) == 1 and target[0] in list(range(self.num_players)):
+            if current_player_idx in self.votes:
+                return False, "Already voted"
+            self.votes[current_player_idx] = target[0]
+            messages.append({
+                'type': 'individual_message',
+                'message': {
+                    'type': MessageType.VOTE_STAGE,
+                    'message': MessageText.SUCCESS,
+                    'data': {}
+                }
+            })
+        
+        if len(self.votes) == self.num_players:
+            self._next_stage()
+
+        return True, messages
 
     async def _send_message(self, message):
         await self.channel_layer.group_send(
@@ -511,13 +825,14 @@ class GameManager:
 
 
     def game_run(self, action) -> dict | None:
+        if self.action_done:
+            return False, "Action has been done"
         valid, error = self._check_player_valid(self, action)
         if not valid:
             return False, error
         # according to GameStatus choose corresponding function
         # to deal with the player action
-        messages = self.game_process_mapping[self.turns[self.status_idx]](action)
-        return True, messages
+        return self.action_process_mapping[self.turns[self.status_idx]](action)
         
 
 if __name__ == "__main__":

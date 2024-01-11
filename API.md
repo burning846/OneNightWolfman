@@ -38,6 +38,7 @@
 ```json
 {
     "type": "next_stage",
+    "message": "success",
     "data": {
         "status": "doppelganger_turn", 
         "interval": 15
