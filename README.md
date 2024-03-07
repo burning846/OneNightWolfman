@@ -2,13 +2,46 @@
 
 ## TODOs
 
+### frontend
+
+- [ ] 注册登录
+- [ ] 房间列表
+- [ ] 游戏界面
+
+### backend
+
 - [ ] 用户系统
 - [ ] 游戏核心玩法逻辑
 - [ ] 异常捕获与处理
 
+### QA
+
+- [ ] API单元测试
+- [ ] 全自动后端游戏流程测试js脚本
+- [ ] APP用户测试全流程说明
+
 ## Development Log
 
 ## Run
+
+### Frontend
+
+#### dependency
+
+- Nodejs
+- React
+
+### Backend
+
+#### dependency
+
+- django
+- uvicorn
+- channels
+- channels-redis
+- redis
+
+Prepare Django Database
 
 To use Django Channel Websocket features, we use uvicorn ASGI server as the backend server.
 ```bash
