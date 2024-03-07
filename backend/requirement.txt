@@ -1,0 +1,4 @@
+django
+uvicorn[standard]
+channels
+channels_redis
