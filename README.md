@@ -30,6 +30,10 @@
 
 - Nodejs
 - React
+    - axios
+    - serve
+    - react-router-dom
+- antd
 
 ### Backend
 
