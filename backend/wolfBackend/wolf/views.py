@@ -41,3 +41,10 @@ def login_view(request):
         return Response(
             {"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST
         )
+
+
+@api_view(["POST"])
+def join_room(request):
+    return Response(
+        {"success": True, "message": "Join successful"}, status=status.HTTP_200_OK
+    )

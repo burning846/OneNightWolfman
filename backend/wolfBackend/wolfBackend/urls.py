@@ -25,4 +25,5 @@ urlpatterns = [
     # path('start/<int:room_id>/', views.start_game, name='start_game'),
     path("api/register/", views.register, name="register"),
     path("api/login/", views.login_view, name="login"),
+    path("api/join_room/", views.join_room, name="join_room"),
 ]

@@ -52,6 +52,8 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     # 接收消息
     async def receive(self, text_data):
+        """ """
+
         try:
             print(text_data)
             text_data_json = json.loads(text_data)
@@ -86,20 +88,31 @@ class GameConsumer(AsyncWebsocketConsumer):
                     self.user_id, self.room_id, settings
                 )
 
-            if message_type == MessageType.PLAYER_JOIN:
+            elif message_type == MessageType.PLAYER_JOIN:
                 """
                 获取玩家信息，便于之后通过房间组消息分发
                 """
                 self.user_id = message["user_id"]
                 success, messages = RoomManager.join_room(self.room_id, self.user_id)
 
-            if message_type == MessageType.GAME_START:
+            elif message_type == MessageType.GAME_START:
                 success, messages = RoomManager.start_game(
                     self.room_id, self.channel_layer, self.room_group_name
                 )
 
-            if message_type == MessageType.GAME_ACTION:
+            elif message_type == MessageType.GAME_ACTION:
                 success, messages = RoomManager.run_game(self.room_id, message)
+
+            elif message_type == MessageType.MESSAGE:
+                print(self, "send:", message)
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "send_message",
+                        "message": message,
+                    },
+                )
+                return
 
             if success:
                 for message in messages:
@@ -150,3 +163,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.send(
                 text_data=json.dumps({"type": "secret", "message": message})
             )
+
+    async def send_message(self, event):
+        message = event["message"]
+        await self.send(text_data=json.dumps({"type": "message", "message": message}))
