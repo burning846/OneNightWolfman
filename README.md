@@ -1,24 +1,71 @@
 # One Night Ultimate Werewolf 一夜终极狼人
 
-## TODOs
+## 项目概述
 
-### frontend
+一夜终极狼人是一款多人在线桌游，基于React前端和Django后端实现。游戏支持用户注册、登录、创建房间、加入房间和实时游戏。
 
-- [ ] 注册登录
-- [ ] 房间列表
-- [ ] 游戏界面
+## 功能特性
 
-### backend
+- 用户注册和登录（包括Google OAuth登录）
+- 创建和加入游戏房间
+- 实时游戏通信（WebSocket）
+- 游戏角色和逻辑实现
+- 排行榜系统
 
-- [ ] 用户系统
-- [ ] 游戏核心玩法逻辑
-- [ ] 异常捕获与处理
+## 环境配置
 
-### QA
+### 前端环境变量
 
-- [ ] API单元测试
-- [ ] 全自动后端游戏流程测试js脚本
-- [ ] APP用户测试全流程说明
+前端使用环境变量来配置API基础URL和Google OAuth客户端ID。在`frontend/web`目录下创建`.env.local`文件（开发环境）或`.env.production.local`文件（生产环境）：
+
+```
+# Google OAuth客户端ID
+REACT_APP_GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
+
+# API基础URL（开发环境默认为http://localhost:8000）
+# REACT_APP_API_BASE_URL=http://localhost:8000
+```
+
+### 后端环境变量
+
+后端使用环境变量来配置Django设置、数据库连接和Google OAuth。在`backend`目录下创建`.env`文件：
+
+```
+# Django设置
+DEBUG=True
+SECRET_KEY=your-secret-key-here
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# 数据库设置
+DATABASE_URL=sqlite:///db.sqlite3
+
+# Redis设置（用于Channels和WebSocket）
+REDIS_URL=redis://localhost:6379/0
+
+# Google OAuth设置
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+## API配置
+
+前端使用统一的API配置管理，位于`frontend/web/src/config/api.js`。该文件定义了所有API路径和WebSocket连接URL，确保在不同环境下正确配置。
+
+详细的API文档请参考[API.md](API.md)。
+
+## 部署与开发指南
+
+### 部署指南
+
+- 前端部署指南：[frontend/web/DEPLOYMENT.md](frontend/web/DEPLOYMENT.md)
+- 后端部署指南：
+  - 通用部署：[backend/DEPLOYMENT.md](backend/DEPLOYMENT.md)
+  - Render部署：[backend/RENDER_DEPLOYMENT.md](backend/RENDER_DEPLOYMENT.md)
+- Google OAuth配置：[GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md)
+
+### 开发指南
+
+- GitHub推送指南：[GITHUB_GUIDE.md](GITHUB_GUIDE.md)
 
 ## Development Log
 
