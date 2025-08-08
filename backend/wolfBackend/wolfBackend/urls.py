@@ -16,7 +16,7 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from wolf import views
 
 urlpatterns = [
@@ -26,4 +26,8 @@ urlpatterns = [
     path("api/register/", views.register, name="register"),
     path("api/login/", views.login_view, name="login"),
     path("api/join_room/", views.join_room, name="join_room"),
+    path('create_room/', views.create_room, name='create_room'),
+    path('accounts/', include('allauth.urls')),
+    path('api/google_login/', views.google_login, name='google_login'),
+    path('api/set_username/', views.set_username, name='set_username'),
 ]

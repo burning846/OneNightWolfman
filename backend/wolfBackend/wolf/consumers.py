@@ -5,32 +5,6 @@ from game.room_management import RoomManager
 from game.message import MessageType
 import json
 
-# class GameRoom:
-#     def __init__(self, players):
-#         self.players = players
-#         self.stage = "setup"
-#         self.roles = self.assign_roles(players)
-#         # ...
-
-#     def assign_roles(self, players):
-#         # 随机分配角色
-#         # ...
-
-#     def start_night(self):
-#         self.stage = "night"
-#         # 按顺序激活角色技能
-#         # ...
-
-#     def process_vote(self, votes):
-#         # 处理投票结果
-#         # ...
-
-#     def check_game_end(self):
-#         # 检查游戏是否结束并判定胜利方
-#         # ...
-
-
-# main Game Logic
 class GameConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         """
@@ -49,6 +23,11 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         # 离开房间组
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        
+        # 如果用户已经加入了房间，则在断开连接时离开房间
+        if hasattr(self, 'user_id'):
+            RoomManager.leave_room(self.room_id, self.user_id)
+        
 
     # 接收消息
     async def receive(self, text_data):
@@ -59,31 +38,15 @@ class GameConsumer(AsyncWebsocketConsumer):
             text_data_json = json.loads(text_data)
 
             message_type = text_data_json["type"]
-            message = text_data_json["message"]
-            print(self.channel_name)
-
-            """
-            1. create room
-            2. join/leave room
-            3. change room settings
-            4. start game
-                4.1 game initialization
-            5. player actions
-                5.1 
-                ...
-                5.9
-            6. vote werewolf
-            """
-
+            
+            # 根据消息类型处理不同的消息
             if message_type == MessageType.CREATE_ROOM:
                 """
                 获取房主信息
                 根据设置创建游戏
-                TODO
-                如果房主离开，如何指定下一个房主
                 """
-                self.user_id = message["user_id"]
-                settings = message["settings"]
+                self.user_id = text_data_json["message"]["user_id"]
+                settings = text_data_json["message"]["settings"]
                 success, messages = RoomManager.create_room(
                     self.user_id, self.room_id, settings
                 )
@@ -92,18 +55,23 @@ class GameConsumer(AsyncWebsocketConsumer):
                 """
                 获取玩家信息，便于之后通过房间组消息分发
                 """
-                self.user_id = message["user_id"]
+                self.user_id = text_data_json["message"]["user_id"]
                 success, messages = RoomManager.join_room(self.room_id, self.user_id)
 
             elif message_type == MessageType.GAME_START:
+                # 开始游戏
                 success, messages = RoomManager.start_game(
                     self.room_id, self.channel_layer, self.room_group_name
                 )
 
             elif message_type == MessageType.GAME_ACTION:
-                success, messages = RoomManager.run_game(self.room_id, message)
+                # 处理游戏中的玩家行动
+                action = text_data_json["action"]
+                success, messages = RoomManager.run_game(self.room_id, action)
 
             elif message_type == MessageType.MESSAGE:
+                # 处理普通聊天消息
+                message = text_data_json.get("message", "")
                 print(self, "send:", message)
                 await self.channel_layer.group_send(
                     self.room_group_name,
@@ -114,56 +82,79 @@ class GameConsumer(AsyncWebsocketConsumer):
                 )
                 return
 
+            # 处理消息结果
             if success:
                 for message in messages:
                     await self.channel_layer.group_send(self.room_group_name, message)
             else:
-                # Log error
-                print(messages)
+                # 记录错误
+                print("Error:", messages)
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
                         "type": "group_message",
-                        "error": messages,
+                        "message": {"type": "error", "error": messages},
                     },
                 )
 
-        # print(RoomManager.rooms)
-        # '{"type": "join", "message": "123"}'
-
-        # 发送消息到房间组
-        # await self.channel_layer.group_send(
-        #     self.room_group_name,
-        #     {
-        #         'type': 'game_message',
-        #         'message': message
-        #     }
-        # )
         except Exception as e:
-            print(e)
+            print("Exception:", e)
             await self.send(
-                text_data=json.dumps({"type": "error", "message": "Unknown Error"})
+                text_data=json.dumps({"type": "error", "message": str(e)})
             )
 
     ###########################
-    # send message to players
+    # 发送消息到玩家
     ###########################
+    
+    # 发送群组消息（所有人可见）
     async def group_message(self, event):
         message = event["message"]
         await self.send(
             text_data=json.dumps({"type": "announcement", "message": message})
         )
 
-    # 接收房间组中的消息
+    # 发送个人消息（只有特定玩家可见）
     async def individual_message(self, event):
-        target = event["target"]
         message = event["message"]
-        if self.player_id in target:
-            # 发送消息到 WebSocket
+        
+        # 检查消息是否有目标玩家
+        if "target" in event:
+            target = event["target"]
+            if hasattr(self, 'user_id') and self.user_id in target:
+                # 发送消息到 WebSocket
+                await self.send(
+                    text_data=json.dumps({"type": "secret", "message": message})
+                )
+        else:
+            # 如果没有指定目标，则直接发送消息
             await self.send(
                 text_data=json.dumps({"type": "secret", "message": message})
             )
 
+    # 发送聊天消息
     async def send_message(self, event):
         message = event["message"]
         await self.send(text_data=json.dumps({"type": "message", "message": message}))
+    
+    # 处理游戏状态更新
+    async def game_state_update(self, event):
+        state = event["state"]
+        await self.send(text_data=json.dumps({"type": "game_state", "state": state}))
+    
+    # 处理角色回合
+    async def role_turn(self, event):
+        turn_data = event["turn_data"]
+        # 检查是否是当前玩家的回合
+        if hasattr(self, 'user_id') and turn_data.get("player") == self.user_id:
+            await self.send(text_data=json.dumps({"type": "role_turn", "data": turn_data}))
+    
+    # 处理投票阶段
+    async def vote_stage(self, event):
+        vote_data = event["vote_data"]
+        await self.send(text_data=json.dumps({"type": "vote_stage", "data": vote_data}))
+    
+    # 处理游戏结束
+    async def game_end(self, event):
+        result = event["result"]
+        await self.send(text_data=json.dumps({"type": "game_end", "result": result}))

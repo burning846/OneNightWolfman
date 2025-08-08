@@ -23,8 +23,8 @@ wheels/
 # Django
 *.log
 local_settings.py
-*.sqlite3
-*.sqlite3-journal
+db.sqlite3
+db.sqlite3-journal
 media
 
 # 环境变量和敏感信息
@@ -48,21 +48,3 @@ ENV/
 # 操作系统
 .DS_Store
 Thumbs.db
-
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# 构建输出
-/build
-/dist
-
-# 项目特定
-*/.ngix.conf
-frontend/App
-frontend/wx
-
-# Vercel
-.vercel

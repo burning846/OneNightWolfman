@@ -1,0 +1,154 @@
+/* JoinRoom.css */
+
+.join-room-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  font-family: 'Arial', sans-serif;
+}
+
+/* 头部样式 */
+.header {
+  background-color: #3f51b5;
+  color: white;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.auth-links {
+  display: flex;
+  gap: 15px;
+}
+
+.auth-link {
+  color: white;
+  text-decoration: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.1);
+  transition: background-color 0.3s;
+}
+
+.auth-link:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.logout-btn {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.logout-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 主内容区域 */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 40px;
+}
+
+.join-section,
+.create-section {
+  background-color: white;
+  border-radius: 8px;
+  padding: 30px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.join-section h2,
+.create-section h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #333;
+  font-size: 20px;
+}
+
+.join-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.room-code-input {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+  width: 100%;
+}
+
+.join-btn,
+.create-btn {
+  padding: 12px;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.join-btn:hover,
+.create-btn:hover {
+  background-color: #3367d6;
+}
+
+/* 页脚样式 */
+.footer {
+  background-color: #333;
+  color: #aaa;
+  text-align: center;
+  padding: 15px;
+  font-size: 14px;
+}
+
+/* 响应式设计 */
+@media (min-width: 768px) {
+  .main-content {
+    flex-direction: row;
+    justify-content: center;
+    gap: 30px;
+  }
+  
+  .join-section,
+  .create-section {
+    width: 45%;
+    max-width: 400px;
+  }
+}

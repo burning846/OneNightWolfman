@@ -8,3 +8,12 @@ class Player(models.Model):
     # 可以添加更多玩家相关的字段，如头像、积分等
     avatar = models.URLField()
     experience = models.IntegerField()
+
+class Room(models.Model):
+    room_id = models.IntegerField(primary_key=True, unique=True)
+    config = models.JSONField()
+    players = models.JSONField(default=list)  # Storing as a JSON list of user IDs
+    is_active = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Room {self.room_id}"

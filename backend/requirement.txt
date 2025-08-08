@@ -3,3 +3,4 @@ uvicorn[standard]
 channels
 channels_redis
 djangorestframework
+django-allauth
