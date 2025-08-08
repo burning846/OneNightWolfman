@@ -8,15 +8,26 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || (isDevelopment ? 'http://localhost:8000' : '');
 
 // WebSocket URL配置
-// 本地开发环境使用ws://localhost:8000，生产环境使用相对路径并自动判断协议
+// 本地开发环境使用ws://localhost:8000，生产环境使用环境变量或自动判断
 const getWebSocketBaseURL = () => {
+  // 优先使用环境变量中的WebSocket URL
+  if (process.env.REACT_APP_WS_BASE_URL) {
+    return process.env.REACT_APP_WS_BASE_URL;
+  }
+  
   if (isDevelopment) {
     return 'ws://localhost:8000';
   } else {
-    // 在生产环境中，根据当前页面协议自动选择ws或wss
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // 使用当前主机名
-    return `${protocol}//${window.location.host}`;
+    // 如果API_BASE_URL是完整URL，则基于它构建WebSocket URL
+    if (API_BASE_URL.startsWith('http')) {
+      const apiUrl = new URL(API_BASE_URL);
+      const protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${protocol}//${apiUrl.host}`;
+    } else {
+      // 否则基于当前页面协议和主机名
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${protocol}//${window.location.host}`;
+    }
   }
 };
 

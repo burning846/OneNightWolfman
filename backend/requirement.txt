@@ -4,3 +4,8 @@ channels
 channels_redis
 djangorestframework
 django-allauth
+gunicorn
+psycopg2-binary
+dj-database-url
+whitenoise
+django-cors-headers

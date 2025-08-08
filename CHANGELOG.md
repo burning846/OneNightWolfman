@@ -11,7 +11,11 @@
 - 添加了Vercel部署配置（`frontend/web/vercel.json`）
 - 添加了前端部署指南（`frontend/web/DEPLOYMENT.md`）
 - 添加了后端部署指南（`backend/DEPLOYMENT.md`）
-- 添加了Render部署指南（`backend/RENDER_DEPLOYMENT.md`）
+- 添加了Render部署指南（`RENDER_DEPLOYMENT.md`）
+- 添加了Render前端部署指南（`frontend/web/RENDER_FRONTEND_DEPLOYMENT.md`）
+- 添加了Render部署所需的配置文件（`backend/build.sh`、`backend/Procfile`、`backend/runtime.txt`）
+- 添加了Render环境的Django设置文件（`backend/wolfBackend/wolfBackend/settings_render.py`）
+- 添加了Render环境变量示例文件（`backend/.env.example.render`和`frontend/web/.env.production`）
 - 添加了GitHub推送指南（`GITHUB_GUIDE.md`）
 - 添加了前端`.env.local`文件作为本地环境变量配置示例
 - 更新了项目的`.gitignore`文件，添加了更多忽略规则
