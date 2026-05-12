@@ -5,9 +5,10 @@ import {
   resolveKilled,
   determineWinners,
 } from './engine.js';
+import { LOBBY_GRACE_MS } from './rooms.js';
 
-const STEP_TIMEOUT_MS = 90 * 1000;   // 每个夜晚步骤的最长等待
-const VOTE_TIMEOUT_MS = 60 * 1000;   // 投票阶段最长等待
+const STEP_TIMEOUT_MS = 90 * 1000;
+const VOTE_TIMEOUT_MS = 60 * 1000;
 
 export class GameSession {
   constructor(room, io) {
@@ -26,9 +27,13 @@ export class GameSession {
     this.votes = {};
     this.dayEndsAt = null;
     this.voteEndsAt = null;
+    this.result = null;
   }
 
   start() {
+    // 开局取消所有"大厅断线宽限"定时器，避免游戏中误踢离线玩家
+    this.room.cancelAllRemovals();
+
     const { initialPlayerRoles, initialCenter } = dealCards(
       this.room.config.selectedRoles,
       this.room.players.length
@@ -40,8 +45,9 @@ export class GameSession {
     this.nightSteps = generateNightSteps(initialPlayerRoles);
     this.stepIndex = -1;
     this.votes = {};
+    this.result = null;
 
-    // 私发每个玩家的初始角色
+    // 私发每人初始角色 + 存进 privateLog
     this.room.players.forEach((p, idx) => {
       const payload = { role: this.initialRoles[idx], playerIdx: idx };
       p.privateLog.push({ event: 'your_role', payload });
@@ -51,7 +57,6 @@ export class GameSession {
     this.room.phase = 'night';
     this.broadcastRoomState();
 
-    // 给所有人 3 秒看自己的牌再开始夜晚
     setTimeout(() => this.nextStep(), 3000);
   }
 
@@ -66,7 +71,6 @@ export class GameSession {
 
     const step = this.nightSteps[this.stepIndex];
 
-    // 广播阶段（不暴露身份）
     this.io.to(this.room.code).emit('night_step', {
       stepIndex: this.stepIndex,
       totalSteps: this.nightSteps.length,
@@ -75,7 +79,6 @@ export class GameSession {
       actorCount: step.players.length,
     });
 
-    // 私发"提示"或"立即揭示"
     for (const playerIdx of step.players) {
       const player = this.room.players[playerIdx];
       if (!player) continue;
@@ -225,7 +228,6 @@ export class GameSession {
     this.completed.add(playerIdx);
     if (this.completed.size >= step.players.length) {
       this.clearStepTimer();
-      // 留 0.8 秒让所有人看到 "done" 状态再切下一步
       this.stepTimer = setTimeout(() => this.nextStep(), 800);
     }
   }
@@ -267,7 +269,6 @@ export class GameSession {
     });
     if (Object.keys(this.votes).length >= N) {
       this.clearAllTimers();
-      // 给前端 1 秒动画过渡
       setTimeout(() => this.endVote(), 1000);
     }
     return true;
@@ -292,6 +293,7 @@ export class GameSession {
       winners,
     };
 
+    this.result = payload;
     this.io.to(this.room.code).emit('result', payload);
     this.broadcastRoomState();
   }
@@ -301,6 +303,14 @@ export class GameSession {
     this.room.phase = 'lobby';
     this.room.players.forEach(p => { p.privateLog = []; });
     this.room.game = null;
+    // 回大厅后，对仍处于离线的玩家也启用宽限期，30 秒不回来就清掉
+    for (const p of this.room.players) {
+      if (!p.connected) {
+        this.room.scheduleRemoval(p.id, LOBBY_GRACE_MS, () => {
+          this.io.to(this.room.code).emit('room_state', this.room.toPublicState());
+        });
+      }
+    }
     this.broadcastRoomState();
   }
 

@@ -5,6 +5,7 @@ import {
   reconnect,
   getRoom,
   deleteRoom,
+  LOBBY_GRACE_MS,
 } from './rooms.js';
 import { GameSession } from './game.js';
 import { validateConfig } from './engine.js';
@@ -19,7 +20,7 @@ function bindSocket(socket, room, player) {
   player.lastSocketId = socket.id;
   player.connected = true;
   socket.join(room.code);
-  socket.join(player.id); // 私密信道
+  socket.join(player.id);
 }
 
 function unbindSocket(socket) {
@@ -73,12 +74,12 @@ export function handleConnection(io, socket) {
       playerId: result.player.id,
       token: result.player.token,
     });
-    // 先发当前房间状态
     socket.emit('room_state', result.room.toPublicState());
-    // 重放私密日志（角色、夜晚揭示、提示等）
     for (const item of result.player.privateLog) {
       socket.emit(item.event, item.payload);
     }
+    // 广播一下，让其他人知道该玩家上线了
+    io.to(result.room.code).emit('room_state', result.room.toPublicState());
   });
 
   socket.on('update_config', ({ selectedRoles, discussionSeconds } = {}, cb) => {
@@ -176,19 +177,21 @@ export function handleConnection(io, socket) {
     const room = getRoom(code);
     if (!room) return;
 
+    // 不论什么阶段，先标记离线并广播一次
+    room.setConnected(playerId, false);
+    io.to(code).emit('room_state', room.toPublicState());
+
     if (room.phase === 'lobby') {
-      // 大厅阶段：直接移除
-      room.removePlayer(playerId);
-      if (room.players.length === 0) {
-        deleteRoom(code);
-      } else {
-        io.to(code).emit('room_state', room.toPublicState());
-      }
-    } else {
-      // 游戏中：仅标记为断线，等待重连
-      room.setConnected(playerId, false);
-      io.to(code).emit('room_state', room.toPublicState());
+      // 大厅阶段：给 LOBBY_GRACE_MS 宽限期，不回来才踢
+      room.scheduleRemoval(playerId, LOBBY_GRACE_MS, () => {
+        if (room.players.length === 0) {
+          deleteRoom(code);
+        } else {
+          io.to(code).emit('room_state', room.toPublicState());
+        }
+      });
     }
+    // 游戏中：保留位置，等重连，永不主动踢
   });
 }
 

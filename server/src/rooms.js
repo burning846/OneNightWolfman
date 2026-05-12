@@ -3,6 +3,9 @@ import { generateRoomCode } from './engine.js';
 
 const rooms = new Map();
 
+// 大厅断线宽限期：30 秒内重连还能保住位置
+export const LOBBY_GRACE_MS = 30 * 1000;
+
 function genPlayerId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -17,15 +20,16 @@ function genToken() {
 export class Room {
   constructor(code) {
     this.code = code;
-    this.players = []; // { id, nickname, token, connected, lastSocketId, privateLog: [] }
+    this.players = [];
     this.hostId = null;
-    this.phase = 'lobby'; // lobby | night | day | vote | result
+    this.phase = 'lobby';
     this.config = {
       selectedRoles: { werewolf: 2, seer: 1, robber: 1, troublemaker: 1, villager: 1 },
       discussionSeconds: 300,
     };
     this.game = null;
     this.lastActivityAt = Date.now();
+    this.removalTimers = new Map();
   }
 
   addPlayer(nickname) {
@@ -44,6 +48,7 @@ export class Room {
   }
 
   removePlayer(id) {
+    this.cancelRemoval(id);
     const idx = this.players.findIndex(p => p.id === id);
     if (idx < 0) return null;
     const player = this.players[idx];
@@ -67,8 +72,34 @@ export class Room {
     }
   }
 
+  scheduleRemoval(id, delayMs, onRemoved) {
+    this.cancelRemoval(id);
+    const t = setTimeout(() => {
+      this.removalTimers.delete(id);
+      if (this.phase !== 'lobby') return;
+      const player = this.getPlayer(id);
+      if (!player || player.connected) return;
+      this.removePlayer(id);
+      if (onRemoved) onRemoved(player);
+    }, delayMs);
+    this.removalTimers.set(id, t);
+  }
+
+  cancelRemoval(id) {
+    const t = this.removalTimers.get(id);
+    if (t) {
+      clearTimeout(t);
+      this.removalTimers.delete(id);
+    }
+  }
+
+  cancelAllRemovals() {
+    for (const t of this.removalTimers.values()) clearTimeout(t);
+    this.removalTimers.clear();
+  }
+
   toPublicState() {
-    return {
+    const base = {
       code: this.code,
       hostId: this.hostId,
       phase: this.phase,
@@ -80,6 +111,20 @@ export class Room {
         isHost: p.id === this.hostId,
         connected: p.connected,
       })),
+    };
+    if (!this.game) return base;
+    return {
+      ...base,
+      dayEndsAt: this.game.dayEndsAt ?? null,
+      voteEndsAt: this.game.voteEndsAt ?? null,
+      voteProgress:
+        this.phase === 'vote'
+          ? {
+              count: Object.keys(this.game.votes || {}).length,
+              total: this.players.length,
+            }
+          : null,
+      result: this.game.result ?? null,
     };
   }
 
@@ -122,20 +167,23 @@ export function reconnect(code, playerId, token) {
   const player = room.getPlayer(playerId);
   if (!player) return { ok: false, error: '玩家不存在' };
   if (player.token !== token) return { ok: false, error: 'token 无效' };
+  room.cancelRemoval(playerId);
   player.connected = true;
   room.lastActivityAt = Date.now();
   return { ok: true, room, player };
 }
 
 export function deleteRoom(code) {
+  const room = rooms.get(String(code));
+  if (room) room.cancelAllRemovals();
   rooms.delete(String(code));
 }
 
-// 周期性清理空房间
 setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms.entries()) {
     if (room.isEmpty() && now - room.lastActivityAt > 60 * 60 * 1000) {
+      room.cancelAllRemovals();
       rooms.delete(code);
       console.log('[wolf] cleaned empty room', code);
     }

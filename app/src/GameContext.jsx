@@ -66,11 +66,18 @@ function reducer(state, a) {
               result: null,
             }
           : {};
+      // 服务端会把阶段相关数据塞进 room_state（重连时用来恢复倒计时/进度/结果）
+      const phaseSync = {};
+      if (a.payload.dayEndsAt != null) phaseSync.dayEndsAt = a.payload.dayEndsAt;
+      if (a.payload.voteEndsAt != null) phaseSync.voteEndsAt = a.payload.voteEndsAt;
+      if (a.payload.voteProgress) phaseSync.voteProgress = a.payload.voteProgress;
+      if (a.payload.result) phaseSync.result = a.payload.result;
       return {
         ...state,
         roomState: a.payload,
         myPlayerIdx: myIdx >= 0 ? myIdx : state.myPlayerIdx,
         ...reset,
+        ...phaseSync,
       };
     }
     case 'your_role':
@@ -294,21 +301,4 @@ export function GameProvider({ children }) {
   return <Ctx.Provider value={{ state, api }}>{children}</Ctx.Provider>;
 }
 
-export function useGame() {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('useGame must be used within GameProvider');
-  return ctx;
-}
-
-function saveSession(data) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
-}
-function loadSession() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-function clearSession() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
-}
+export function useG
