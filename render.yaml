@@ -1,0 +1,21 @@
+# Render.com Blueprint — 自动化部署配置
+# 把仓库连接到 Render 后，Render 会读取这个文件并自动创建服务
+# 文档：https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: wolf-server
+    runtime: node
+    rootDir: server
+    plan: free                      # 免费层（15 分钟无访问会休眠，冷启动 ~30-60 秒）
+    region: singapore               # 离中国大陆较近；可选 oregon / frankfurt / singapore / ohio
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true                # main 分支有新 commit 自动重新部署
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        sync: false                 # 在 Render 仪表盘里手动填，避免明文进仓库
