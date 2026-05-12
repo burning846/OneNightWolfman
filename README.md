@@ -1,177 +1,95 @@
-# One Night Ultimate Werewolf 一夜终极狼人
+# 一夜终极狼人 · 多人在线 Web App
 
-## 项目概述
+> 房间制多人在线版的一夜终极狼人。每位玩家用自己的手机加入同一房间，
+> 服务端权威，所有私密信息（角色 / 夜晚揭示）只发给应得的玩家，
+> 关闭页面不会泄密、刷新自动重连。
 
-一夜终极狼人是一款多人在线桌游，基于React前端和Django后端实现。游戏支持用户注册、登录、创建房间、加入房间和实时游戏。
-
-## 功能特性
-
-- 用户注册和登录（包括Google OAuth登录）
-- 创建和加入游戏房间
-- 实时游戏通信（WebSocket）
-- 游戏角色和逻辑实现
-- 排行榜系统
-
-## 环境配置
-
-### 前端环境变量
-
-前端使用环境变量来配置API基础URL和Google OAuth客户端ID。在`frontend/web`目录下创建`.env.local`文件（开发环境）或`.env.production.local`文件（生产环境）：
+## 技术架构
 
 ```
-# Google OAuth客户端ID
-REACT_APP_GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
-
-# API基础URL（开发环境默认为http://localhost:8000）
-# REACT_APP_API_BASE_URL=http://localhost:8000
+┌──────────────────┐         WebSocket          ┌──────────────────┐
+│  app/  (前端)     │ ◀────── Socket.IO ───────▶ │ server/ (后端)    │
+│  React + Vite    │                            │ Node.js + Socket │
+│  静态部署 Vercel  │                            │ Express          │
+└──────────────────┘                            └──────────────────┘
+                                                  rooms.js  房间表 (内存)
+                                                  game.js   夜晚状态机
+                                                  engine.js 纯函数引擎
 ```
 
-### 后端环境变量
+服务端是权威的：所有夜晚行动、洗牌、计票都在服务器执行，
+客户端只是"显示器 + 输入设备"，不持有完整牌组信息，因此不存在通过改前端代码作弊的可能。
 
-后端使用环境变量来配置Django设置、数据库连接和Google OAuth。在`backend`目录下创建`.env`文件：
+## 目录结构
 
 ```
-# Django设置
-DEBUG=True
-SECRET_KEY=your-secret-key-here
-ALLOWED_HOSTS=localhost,127.0.0.1
-
-# 数据库设置
-DATABASE_URL=sqlite:///db.sqlite3
-
-# Redis设置（用于Channels和WebSocket）
-REDIS_URL=redis://localhost:6379/0
-
-# Google OAuth设置
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+.
+├── app/                    # React 前端（部署到 Vercel 等静态托管）
+│   ├── src/
+│   │   ├── main.jsx
+│   │   ├── App.jsx
+│   │   ├── GameContext.jsx     # socket + 全局状态
+│   │   ├── index.css
+│   │   ├── game/
+│   │   │   ├── roles.js
+│   │   │   └── engine.js
+│   │   └── screens/
+│   │       ├── HomeScreen.jsx       # 创建/加入房间
+│   │       ├── LobbyScreen.jsx      # 大厅 + 角色配置
+│   │       ├── NightScreen.jsx      # 夜晚阶段框架
+│   │       ├── NightAction.jsx      # 夜晚所有角色的私密 UI
+│   │       ├── DayScreen.jsx        # 白天讨论
+│   │       ├── VoteScreen.jsx       # 投票
+│   │       └── ResultScreen.jsx     # 结算
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── vercel.json
+│   ├── .env.example
+│   └── index.html
+│
+├── server/                 # Node.js + Socket.IO 后端
+│   ├── index.js                    # Express + Socket.IO 入口
+│   ├── src/
+│   │   ├── socket.js               # Socket.IO 事件分发
+│   │   ├── rooms.js                # 房间注册表 / Room 类
+│   │   ├── game.js                 # 单局状态机 GameSession
+│   │   ├── engine.js               # 纯函数（洗牌、计票、胜负）
+│   │   └── roles.js                # 角色定义
+│   ├── package.json
+│   ├── Dockerfile
+│   └── .env.example
+│
+├── docker-compose.yml      # 一条命令拉起后端
+├── LICENSE
+└── README.md
 ```
 
-## API配置
+## 在本地运行
 
-前端使用统一的API配置管理，位于`frontend/web/src/config/api.js`。该文件定义了所有API路径和WebSocket连接URL，确保在不同环境下正确配置。
+需要：Node.js ≥ 18。
 
-详细的API文档请参考[API.md](API.md)。
-
-## 部署与开发指南
-
-### 部署指南
-
-- 前端部署指南：[frontend/web/DEPLOYMENT.md](frontend/web/DEPLOYMENT.md)
-- 后端部署指南：
-  - 通用部署：[backend/DEPLOYMENT.md](backend/DEPLOYMENT.md)
-  - Render部署：[backend/RENDER_DEPLOYMENT.md](backend/RENDER_DEPLOYMENT.md)
-- Google OAuth配置：[GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md)
-
-### 开发指南
-
-- GitHub推送指南：[GITHUB_GUIDE.md](GITHUB_GUIDE.md)
-
-## Development Log
-
-## Run
-
-### Frontend
-
-#### dependency
-
-- Nodejs
-- React
-    - axios
-    - serve
-    - react-router-dom
-- antd
-
-### Backend
-
-#### dependency
-
-- django
-- uvicorn
-- channels
-- channels-redis
-- redis
-
-Prepare Django Database
-
-To use Django Channel Websocket features, we use uvicorn ASGI server as the backend server.
 ```bash
-cd backend/wolfBackend
-uvicorn wolfBackend.asgi:application
+# 终端 1 - 后端
+cd server
+npm install
+npm run dev        # 监听 :4000
+
+# 终端 2 - 前端
+cd app
+npm install
+npm run dev        # 监听 :5173
 ```
 
-## Game Logic
+打开 http://localhost:5173 ，创建房间，把房号告诉同一局域网或公网上的朋友，
+他们也用同一个前端地址加入即可。
 
-### Charactors & Orders
-```
-- DOPPELGANGER = 0    # 化身幽灵
-- WEREWOLF  = 1       # 狼人
-- MINION = 2          # 爪牙
-- MASON = 3           # 守夜人
-- SEER = 4            # 预言家
-- ROBBER = 5          # 强盗
-- TROUBLEMAKER = 6    # 捣蛋鬼
-- DRUNK = 7           # 酒鬼
-- INSOMNIAC = 8       # 失眠者
-- VILLAGER = 9        # 村民
-- HUNTER = 10         # 猎人
-- TANNER = 11         # 皮匠
-```
+## 部署
 
-### Game settings
+### 前端：Vercel（推荐，免费）
 
-```json
-{
-    "interval": 15,
-    "num_players": 8,
-    "roles": {
-        "doppelganger": 0,
-        "werewolf": 2,
-        "minion": 1,
-        "mason": 2,
-        "seer": 1,
-        "robber": 1,
-        "troublemaker": 1,
-        "drunk": 1,
-        "insomniac": 1,
-        "hunter": 1,
-    }
-}
-```
-
-### Message
-```json
-{
-    "type": 3,
-    "message": {
-        "settings": {},
-        "player": "",
-        "player_index": 0,
-        "target": [],
-    }
-}
-```
-
-## Notes
-前端：
-- 用户注册登录
-- 用户创建房间
-    - 房间设置
-- 用户加入房间
-    - 加入websocket用户组
-- 用户开始游戏
-    - 和游戏服务器建立连接
-
-后端：
-- 数据库
-    - 用户数据
-    - 游戏历史数据
-    - 数据备份与恢复
-- 服务器
-    - 房间数据
-    - 游戏服务器
-        - 游戏主逻辑
-        - 游戏全局锁
-        - 玩家重连机制
-        - 聊天
-        - 语音（暂不考虑）
+1. 把仓库推到 GitHub
+2. 登录 [vercel.com](https://vercel.com) → Add New Project → 选这个仓库
+3. **Root Directory** 设为 `app`
+4. **Build Command** `npm run build`，**Output Directory** `dist`（vercel.json 已配置好）
+5. 添加环境变量 `VITE_SERVER_URL=https://<你的后端公网地址>`
+6. Deploy
