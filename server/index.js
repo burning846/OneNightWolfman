@@ -30,6 +30,16 @@ io.on('connection', (socket) => {
 });
 
 const PORT = Number(process.env.PORT) || 4000;
-httpServer.listen(PORT, () => {
-  console.log(`[wolf] listening on :${PORT}, cors=${JSON.stringify(corsOptions.origin)}`);
+const HOST = process.env.HOST || '0.0.0.0';
+
+httpServer.listen(PORT, HOST, () => {
+  console.log(`[wolf] listening on ${HOST}:${PORT}, cors=${JSON.stringify(corsOptions.origin)}`);
+});
+
+// 兜底：把没捕获的异常打出来，便于云平台看清楚
+process.on('uncaughtException', (e) => {
+  console.error('[wolf] uncaughtException', e);
+});
+process.on('unhandledRejection', (e) => {
+  console.error('[wolf] unhandledRejection', e);
 });
