@@ -301,4 +301,21 @@ export function GameProvider({ children }) {
   return <Ctx.Provider value={{ state, api }}>{children}</Ctx.Provider>;
 }
 
-export function useG
+export function useGame() {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error('useGame must be used within GameProvider');
+  return ctx;
+}
+
+function saveSession(data) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+}
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function clearSession() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+}
