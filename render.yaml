@@ -1,5 +1,4 @@
-# Render.com Blueprint — 自动化部署配置
-# 把仓库连接到 Render 后，Render 会读取这个文件并自动创建服务
+# Render.com Blueprint
 # 文档：https://render.com/docs/blueprint-spec
 
 services:
@@ -7,15 +6,23 @@ services:
     name: wolf-server
     runtime: node
     rootDir: server
-    plan: free                      # 免费层（15 分钟无访问会休眠，冷启动 ~30-60 秒）
-    region: singapore               # 离中国大陆较近；可选 oregon / frankfurt / singapore / ohio
+    plan: free
+    region: singapore
     branch: main
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
-    autoDeploy: true                # main 分支有新 commit 自动重新部署
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGIN
-        sync: false                 # 在 Render 仪表盘里手动填，避免明文进仓库
+        sync: false        # 仪表盘里手动填前端域名
+      # 用户系统（可选）。Neon 免费 Postgres 是最方便的选择：
+      #   1. https://neon.tech 注册一个项目，拿 connection string
+      #   2. 把 connection string 填进 Render 的 DATABASE_URL
+      #   3. 用 `openssl rand -hex 32` 生成一个 JWT_SECRET 填进去
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false

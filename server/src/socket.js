@@ -9,6 +9,15 @@ import {
 } from './rooms.js';
 import { GameSession } from './game.js';
 import { validateConfig } from './engine.js';
+import {
+  registerUser,
+  loginUser,
+  verifyToken,
+  getUserById,
+  updateProfile,
+  getUserStats,
+  getRecentGames,
+} from './auth.js';
 
 const ack = (cb, payload) => { try { cb && cb(payload); } catch {} };
 const ackError = (cb, error) => ack(cb, { ok: false, error });
@@ -31,14 +40,69 @@ function unbindSocket(socket) {
 }
 
 export function handleConnection(io, socket) {
-  socket.data = { roomCode: null, playerId: null };
+  socket.data = { roomCode: null, playerId: null, userId: null, userNickname: null };
 
+  // ============================================================
+  // 账号相关
+  // ============================================================
+  socket.on('auth:register', async (data, cb) => {
+    const r = await registerUser(data || {});
+    if (r.ok) {
+      socket.data.userId = r.user.id;
+      socket.data.userNickname = r.user.nickname;
+    }
+    ack(cb, r);
+  });
+
+  socket.on('auth:login', async (data, cb) => {
+    const r = await loginUser(data || {});
+    if (r.ok) {
+      socket.data.userId = r.user.id;
+      socket.data.userNickname = r.user.nickname;
+    }
+    ack(cb, r);
+  });
+
+  socket.on('auth:verify', async ({ token } = {}, cb) => {
+    const decoded = token && verifyToken(token);
+    if (!decoded) return ackError(cb, 'token 无效');
+    const user = await getUserById(decoded.uid);
+    if (!user) return ackError(cb, '用户不存在');
+    socket.data.userId = user.id;
+    socket.data.userNickname = user.nickname;
+    ackOk(cb, { user });
+  });
+
+  socket.on('auth:logout', (_payload, cb) => {
+    socket.data.userId = null;
+    socket.data.userNickname = null;
+    ackOk(cb);
+  });
+
+  socket.on('auth:profile', async (_payload, cb) => {
+    if (!socket.data.userId) return ackError(cb, '未登录');
+    const user = await getUserById(socket.data.userId);
+    const stats = await getUserStats(socket.data.userId);
+    const recent = await getRecentGames(socket.data.userId);
+    ackOk(cb, { user, stats, recent });
+  });
+
+  socket.on('auth:update', async (data, cb) => {
+    if (!socket.data.userId) return ackError(cb, '未登录');
+    const r = await updateProfile(socket.data.userId, data || {});
+    if (r.ok) socket.data.userNickname = r.user.nickname;
+    ack(cb, r);
+  });
+
+  // ============================================================
+  // 房间相关
+  // ============================================================
   socket.on('create_room', ({ nickname } = {}, cb) => {
-    nickname = String(nickname || '').trim();
+    nickname = String(nickname || socket.data.userNickname || '').trim();
     if (!nickname) return ackError(cb, '请输入昵称');
     if (nickname.length > 12) return ackError(cb, '昵称最多 12 个字符');
     try {
-      const { room, player } = createRoom(nickname);
+      const { room, player } = createRoom(nickname, socket.data.userId);
       bindSocket(socket, room, player);
       ackOk(cb, { roomCode: room.code, playerId: player.id, token: player.token });
       io.to(room.code).emit('room_state', room.toPublicState());
@@ -50,11 +114,11 @@ export function handleConnection(io, socket) {
 
   socket.on('join_room', ({ roomCode, nickname } = {}, cb) => {
     roomCode = String(roomCode || '').trim();
-    nickname = String(nickname || '').trim();
+    nickname = String(nickname || socket.data.userNickname || '').trim();
     if (!roomCode) return ackError(cb, '请输入房间号');
     if (!nickname) return ackError(cb, '请输入昵称');
     if (nickname.length > 12) return ackError(cb, '昵称最多 12 个字符');
-    const result = joinRoom(roomCode, nickname);
+    const result = joinRoom(roomCode, nickname, socket.data.userId);
     if (!result.ok) return ackError(cb, result.error);
     bindSocket(socket, result.room, result.player);
     ackOk(cb, {
@@ -201,7 +265,6 @@ function leaveCurrentRoom(io, socket) {
     return;
   }
   if (room.phase === 'lobby') {
-    // 大厅阶段：真离开（释放 slot）
     room.removePlayer(playerId);
     unbindSocket(socket);
     if (room.players.length === 0) {
@@ -210,8 +273,6 @@ function leaveCurrentRoom(io, socket) {
       io.to(code).emit('room_state', room.toPublicState());
     }
   } else {
-    // 游戏中：保留 slot 防止索引错位，仅断开 socket
-    // 玩家清 localStorage 回到首页；想回来要重新输房号+昵称
     room.setConnected(playerId, false);
     unbindSocket(socket);
     io.to(code).emit('room_state', room.toPublicState());

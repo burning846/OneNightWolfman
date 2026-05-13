@@ -3,7 +3,6 @@ import { generateRoomCode } from './engine.js';
 
 const rooms = new Map();
 
-// 大厅断线宽限期：30 秒内重连还能保住位置
 export const LOBBY_GRACE_MS = 30 * 1000;
 
 function genPlayerId() {
@@ -32,10 +31,11 @@ export class Room {
     this.removalTimers = new Map();
   }
 
-  addPlayer(nickname) {
+  addPlayer(nickname, userId = null) {
     const player = {
       id: genPlayerId(),
       nickname,
+      userId,
       token: genToken(),
       connected: true,
       lastSocketId: null,
@@ -110,6 +110,7 @@ export class Room {
         idx,
         isHost: p.id === this.hostId,
         connected: p.connected,
+        isLoggedIn: !!p.userId,
       })),
     };
     if (!this.game) return base;
@@ -133,7 +134,7 @@ export class Room {
   }
 }
 
-export function createRoom(nickname) {
+export function createRoom(nickname, userId = null) {
   let code = null;
   for (let i = 0; i < 200; i++) {
     const c = generateRoomCode();
@@ -142,7 +143,7 @@ export function createRoom(nickname) {
   if (!code) throw new Error('Cannot allocate room code');
   const room = new Room(code);
   rooms.set(code, room);
-  const player = room.addPlayer(nickname);
+  const player = room.addPlayer(nickname, userId);
   return { room, player };
 }
 
@@ -151,13 +152,13 @@ export function getRoom(code) {
   return rooms.get(String(code)) || null;
 }
 
-export function joinRoom(code, nickname) {
+export function joinRoom(code, nickname, userId = null) {
   const room = getRoom(code);
   if (!room) return { ok: false, error: '房间不存在' };
   if (room.phase !== 'lobby') return { ok: false, error: '游戏已开始，无法加入' };
   if (room.players.length >= 10) return { ok: false, error: '房间人数已满' };
   if (room.players.some(p => p.nickname === nickname)) return { ok: false, error: '此昵称已被使用' };
-  const player = room.addPlayer(nickname);
+  const player = room.addPlayer(nickname, userId);
   return { ok: true, room, player };
 }
 

@@ -6,6 +6,7 @@ import {
   determineWinners,
 } from './engine.js';
 import { LOBBY_GRACE_MS } from './rooms.js';
+import { saveGameRecord } from './auth.js';
 
 const STEP_TIMEOUT_MS = 90 * 1000;
 const VOTE_TIMEOUT_MS = 60 * 1000;
@@ -31,7 +32,6 @@ export class GameSession {
   }
 
   start() {
-    // 开局取消所有"大厅断线宽限"定时器，避免游戏中误踢离线玩家
     this.room.cancelAllRemovals();
 
     const { initialPlayerRoles, initialCenter } = dealCards(
@@ -47,7 +47,6 @@ export class GameSession {
     this.votes = {};
     this.result = null;
 
-    // 私发每人初始角色 + 存进 privateLog
     this.room.players.forEach((p, idx) => {
       const payload = { role: this.initialRoles[idx], playerIdx: idx };
       p.privateLog.push({ event: 'your_role', payload });
@@ -296,6 +295,14 @@ export class GameSession {
     this.result = payload;
     this.io.to(this.room.code).emit('result', payload);
     this.broadcastRoomState();
+
+    // 异步存到数据库（不阻塞，失败不影响游戏）
+    saveGameRecord({
+      roomCode: this.room.code,
+      config: this.room.config,
+      players: this.room.players.map(p => ({ userId: p.userId, nickname: p.nickname })),
+      result: payload,
+    }).catch(e => console.error('[wolf] save game record failed', e));
   }
 
   resetToLobby() {
@@ -303,7 +310,6 @@ export class GameSession {
     this.room.phase = 'lobby';
     this.room.players.forEach(p => { p.privateLog = []; });
     this.room.game = null;
-    // 回大厅后，对仍处于离线的玩家也启用宽限期，30 秒不回来就清掉
     for (const p of this.room.players) {
       if (!p.connected) {
         this.room.scheduleRemoval(p.id, LOBBY_GRACE_MS, () => {

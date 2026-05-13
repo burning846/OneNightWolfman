@@ -1,14 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGame } from '../GameContext.jsx';
 import { ROLES } from '../game/roles.js';
 
 export default function HomeScreen() {
   const { state, api } = useGame();
-  const [mode, setMode] = useState(null); // null | 'create' | 'join'
+  const [mode, setMode] = useState(null);
   const [nickname, setNickname] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // 进入"创建/加入"模式时，默认用账号昵称
+  useEffect(() => {
+    if (mode && state.user?.nickname) {
+      setNickname(state.user.nickname);
+    }
+  }, [mode, state.user]);
 
   const submit = async () => {
     if (submitting) return;
@@ -24,37 +31,58 @@ export default function HomeScreen() {
     }
   };
 
+  // 主页（未选模式）
   if (!mode) {
     return (
       <div className="screen">
-        <div className="col" style={{ gap: 8, marginTop: 32 }}>
-          <div className="kicker">One Night Ultimate Werewolf</div>
+        <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+          <span style={{ width: 60 }} />
+          <span className="kicker">One Night Ultimate Werewolf</span>
+          {state.user ? (
+            <button className="btn btn-ghost" style={{ padding: '6px 12px' }} onClick={api.goProfile}>
+              {state.user.avatar || '🦊'} {state.user.nickname}
+            </button>
+          ) : (
+            <button className="btn btn-ghost" style={{ padding: '6px 12px' }} onClick={api.goAuth}>
+              登录/注册
+            </button>
+          )}
+        </div>
+
+        <div className="col" style={{ gap: 8, marginTop: 16 }}>
           <h1 className="title">一夜终极狼人</h1>
           <p className="subtitle">
-            房间制多人在线 · 每人用自己的手机登录同一房间
+            房间制多人在线 · 每人用自己的手机加入同一房间
           </p>
         </div>
 
         <div className="col" style={{ gap: 12 }}>
-          <button
-            className="btn btn-primary btn-block"
-            onClick={() => setMode('create')}
-          >
+          <button className="btn btn-primary btn-block" onClick={() => setMode('create')}>
             🆕 创建房间
           </button>
-          <button
-            className="btn btn-block"
-            onClick={() => setMode('join')}
-          >
+          <button className="btn btn-block" onClick={() => setMode('join')}>
             🚪 加入房间
           </button>
-          <button
-            className="btn btn-ghost btn-block"
-            onClick={() => setShowRules((v) => !v)}
-          >
+          <button className="btn btn-ghost btn-block" onClick={() => setShowRules((v) => !v)}>
             {showRules ? '收起角色介绍' : '查看角色介绍'}
           </button>
         </div>
+
+        {state.user && (
+          <div className="card col" style={{ gap: 4 }}>
+            <div className="kicker">已登录</div>
+            <div className="row" style={{ alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 28 }}>{state.user.avatar || '🦊'}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700 }}>{state.user.nickname}</div>
+                <div className="text-muted" style={{ fontSize: 11 }}>{state.user.email}</div>
+              </div>
+              <button className="btn" style={{ padding: '6px 12px' }} onClick={api.goProfile}>
+                我的资料
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="card col">
           <h2 className="h2">怎么玩</h2>
@@ -66,7 +94,7 @@ export default function HomeScreen() {
             <li>讨论 → 投票 → 揭示真相</li>
           </ol>
           <div className="text-muted" style={{ fontSize: 13 }}>
-            玩家数：3-10 人。所有信息仅推送给应得的人，关闭页面不会泄密。
+            玩家数 3-10。{state.user ? '已登录玩家自动记录战绩。' : '登录后会自动记录战绩。'}
           </div>
         </div>
 
@@ -83,9 +111,7 @@ export default function HomeScreen() {
                     </div>
                   </div>
                 </div>
-                <div className="text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
-                  {r.desc}
-                </div>
+                <div className="text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>{r.desc}</div>
               </div>
             ))}
           </div>
@@ -94,12 +120,11 @@ export default function HomeScreen() {
     );
   }
 
+  // 创建/加入子表单
   return (
     <div className="screen">
       <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-        <button className="btn btn-ghost" onClick={() => setMode(null)}>
-          ← 返回
-        </button>
+        <button className="btn btn-ghost" onClick={() => setMode(null)}>← 返回</button>
         <span className="kicker">{mode === 'create' ? '创建房间' : '加入房间'}</span>
         <span style={{ width: 60 }} />
       </div>
@@ -126,10 +151,14 @@ export default function HomeScreen() {
           maxLength={12}
         />
 
+        {state.user && (
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            已登录为 <b>{state.user.nickname}</b>，本局战绩将记入你的账号。
+          </div>
+        )}
+
         <div className="text-muted" style={{ fontSize: 12 }}>
-          服务器：{import.meta.env.VITE_SERVER_URL || 'http://localhost:4000'}
-          {' · '}
-          {state.socketConnected ? '已连接' : '连接中…'}
+          {state.socketConnected ? '已连接服务器' : '连接中…'}
         </div>
       </div>
 

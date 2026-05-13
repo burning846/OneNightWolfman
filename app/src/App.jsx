@@ -6,11 +6,12 @@ import NightScreen from './screens/NightScreen.jsx';
 import DayScreen from './screens/DayScreen.jsx';
 import VoteScreen from './screens/VoteScreen.jsx';
 import ResultScreen from './screens/ResultScreen.jsx';
+import AuthScreen from './screens/AuthScreen.jsx';
+import ProfileScreen from './screens/ProfileScreen.jsx';
 
 function Router() {
   const { state, api } = useGame();
 
-  // 自动清除一次性错误提示
   useEffect(() => {
     if (!state.errorMessage) return;
     const t = setTimeout(() => api.clearError(), 3000);
@@ -30,6 +31,10 @@ function Router() {
         </div>
       </div>
     );
+  } else if (state.status === 'auth') {
+    screen = <AuthScreen />;
+  } else if (state.status === 'profile') {
+    screen = <ProfileScreen />;
   } else if (state.status === 'home' || !state.roomState) {
     screen = <HomeScreen />;
   } else if (phase === 'lobby') {

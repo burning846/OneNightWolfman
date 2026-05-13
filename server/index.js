@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { handleConnection } from './src/socket.js';
+import { initDb, isDbReady } from './src/db.js';
 
 const corsOrigins = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
 const corsOptions = corsOrigins.length > 0 ? { origin: corsOrigins } : { origin: '*' };
@@ -15,7 +16,7 @@ app.get('/', (_req, res) => {
   res.send('One Night Ultimate Werewolf — Socket.IO server running.');
 });
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, t: Date.now() });
+  res.json({ ok: true, t: Date.now(), db: isDbReady() });
 });
 
 const httpServer = createServer(app);
@@ -32,14 +33,17 @@ io.on('connection', (socket) => {
 const PORT = Number(process.env.PORT) || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-httpServer.listen(PORT, HOST, () => {
-  console.log(`[wolf] listening on ${HOST}:${PORT}, cors=${JSON.stringify(corsOptions.origin)}`);
+async function main() {
+  await initDb();  // 即使失败也继续启动，匿名玩法不依赖 DB
+  httpServer.listen(PORT, HOST, () => {
+    console.log(`[wolf] listening on ${HOST}:${PORT}, cors=${JSON.stringify(corsOptions.origin)}, db=${isDbReady()}`);
+  });
+}
+
+main().catch(e => {
+  console.error('[wolf] startup failed', e);
+  process.exit(1);
 });
 
-// 兜底：把没捕获的异常打出来，便于云平台看清楚
-process.on('uncaughtException', (e) => {
-  console.error('[wolf] uncaughtException', e);
-});
-process.on('unhandledRejection', (e) => {
-  console.error('[wolf] unhandledRejection', e);
-});
+process.on('uncaughtException',  e => console.error('[wolf] uncaughtException',  e));
+process.on('unhandledRejection', e => console.error('[wolf] unhandledRejection', e));
