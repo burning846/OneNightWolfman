@@ -78,7 +78,6 @@ export function handleConnection(io, socket) {
     for (const item of result.player.privateLog) {
       socket.emit(item.event, item.payload);
     }
-    // 广播一下，让其他人知道该玩家上线了
     io.to(result.room.code).emit('room_state', result.room.toPublicState());
   });
 
@@ -177,12 +176,10 @@ export function handleConnection(io, socket) {
     const room = getRoom(code);
     if (!room) return;
 
-    // 不论什么阶段，先标记离线并广播一次
     room.setConnected(playerId, false);
     io.to(code).emit('room_state', room.toPublicState());
 
     if (room.phase === 'lobby') {
-      // 大厅阶段：给 LOBBY_GRACE_MS 宽限期，不回来才踢
       room.scheduleRemoval(playerId, LOBBY_GRACE_MS, () => {
         if (room.players.length === 0) {
           deleteRoom(code);
@@ -191,7 +188,6 @@ export function handleConnection(io, socket) {
         }
       });
     }
-    // 游戏中：保留位置，等重连，永不主动踢
   });
 }
 
@@ -204,11 +200,20 @@ function leaveCurrentRoom(io, socket) {
     unbindSocket(socket);
     return;
   }
-  room.removePlayer(playerId);
-  unbindSocket(socket);
-  if (room.players.length === 0) {
-    deleteRoom(code);
+  if (room.phase === 'lobby') {
+    // 大厅阶段：真离开（释放 slot）
+    room.removePlayer(playerId);
+    unbindSocket(socket);
+    if (room.players.length === 0) {
+      deleteRoom(code);
+    } else {
+      io.to(code).emit('room_state', room.toPublicState());
+    }
   } else {
+    // 游戏中：保留 slot 防止索引错位，仅断开 socket
+    // 玩家清 localStorage 回到首页；想回来要重新输房号+昵称
+    room.setConnected(playerId, false);
+    unbindSocket(socket);
     io.to(code).emit('room_state', room.toPublicState());
   }
 }

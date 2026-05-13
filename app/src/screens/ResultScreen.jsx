@@ -1,5 +1,4 @@
 import { useGame } from '../GameContext.jsx';
-import { ROLES } from '../game/roles.js';
 import { roleEmoji, roleName, roleTeam } from '../game/engine.js';
 
 export default function ResultScreen() {
@@ -21,9 +20,19 @@ export default function ResultScreen() {
   const myFinalRole = result.finalRoles[state.myPlayerIdx];
   const iWon = didIWin(myFinalRole, state.myPlayerIdx, result);
 
+  const handleLeave = () => {
+    if (window.confirm('确定要退出房间吗？')) {
+      api.leaveRoom();
+    }
+  };
+
   return (
     <div className="screen">
-      <div className="kicker text-center">🎬 真相揭晓</div>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }} onClick={handleLeave}>× 退出</button>
+        <span className="kicker">🎬 真相揭晓</span>
+        <span style={{ width: 60 }} />
+      </div>
 
       <div className={`banner ${iWon ? '' : 'banner-danger'}`}>
         <div style={{ fontSize: 36 }}>{iWon ? '🏆' : '😢'}</div>

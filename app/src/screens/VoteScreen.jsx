@@ -22,6 +22,12 @@ export default function VoteScreen() {
   const remaining = useCountdown(state.voteEndsAt);
   const [picked, setPicked] = useState(state.myVote);
 
+  const handleLeave = () => {
+    if (window.confirm('游戏进行中退出后无法回到本局，确定要走吗？')) {
+      api.leaveRoom();
+    }
+  };
+
   const submitVote = () => {
     if (picked === null || picked === undefined) return;
     api.castVote(picked);
@@ -30,6 +36,7 @@ export default function VoteScreen() {
   return (
     <div className="screen">
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }} onClick={handleLeave}>× 退出</button>
         <span className="kicker">🗳️ 投票阶段</span>
         <span className="text-muted">{remaining} 秒</span>
       </div>

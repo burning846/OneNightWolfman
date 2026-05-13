@@ -29,9 +29,19 @@ export default function DayScreen() {
   const room = state.roomState;
   const iAmHost = room?.hostId === state.playerId;
 
+  const handleLeave = () => {
+    if (window.confirm('游戏进行中退出后无法回到本局，确定要走吗？')) {
+      api.leaveRoom();
+    }
+  };
+
   return (
     <div className="screen">
-      <div className="kicker">☀️ 白天 · 自由讨论</div>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }} onClick={handleLeave}>× 退出</button>
+        <span className="kicker">☀️ 白天 · 自由讨论</span>
+        <span style={{ width: 60 }} />
+      </div>
 
       <div className="card col text-center" style={{ gap: 8 }}>
         <div className="kicker">剩余时间</div>

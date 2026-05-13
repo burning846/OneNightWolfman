@@ -16,19 +16,26 @@ const STEP_DESC = {
 };
 
 export default function NightScreen() {
-  const { state } = useGame();
+  const { state, api } = useGame();
   const room = state.roomState;
   const step = state.nightStep;
+
+  const handleLeave = () => {
+    if (window.confirm('游戏进行中退出后无法回到本局，确定要走吗？')) {
+      api.leaveRoom();
+    }
+  };
 
   return (
     <div className="screen">
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }} onClick={handleLeave}>× 退出</button>
         <span className="kicker">🌙 夜晚阶段</span>
-        {step && (
+        {step ? (
           <span className="text-muted" style={{ fontSize: 13 }}>
             {step.stepIndex + 1} / {step.totalSteps}
           </span>
-        )}
+        ) : <span style={{ width: 60 }} />}
       </div>
 
       <div className="card col text-center" style={{ gap: 10 }}>
