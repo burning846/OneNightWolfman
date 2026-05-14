@@ -52,7 +52,7 @@ export default function HomeScreen() {
         <div className="col" style={{ gap: 8, marginTop: 16 }}>
           <h1 className="title">一夜终极狼人</h1>
           <p className="subtitle">
-            房间制多人在线 · 每人用自己的手机加入同一房间
+            围坐一桌 · 各自手机 · 嘴炮辩论
           </p>
         </div>
 
