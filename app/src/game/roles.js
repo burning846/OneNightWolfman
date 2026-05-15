@@ -1,8 +1,14 @@
 // 一夜终极狼人 - 角色定义（前端展示用）
-// 服务端有自己的 roles.js，权威逻辑以服务端为准。
 // team: 'werewolf' | 'village' | 'tanner'
 
 export const ROLES = {
+  doppelganger: {
+    id: 'doppelganger',
+    name: '化身幽灵',
+    team: 'village',
+    emoji: '👻',
+    desc: '第一个醒来，选一名玩家并复制其角色，之后按复制后的角色行动和结算。',
+  },
   werewolf: {
     id: 'werewolf',
     name: '狼人',

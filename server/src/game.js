@@ -29,6 +29,8 @@ export class GameSession {
     this.dayEndsAt = null;
     this.voteEndsAt = null;
     this.result = null;
+    // 化身复制的角色 (仅作为揭示信息记录，不影响逻辑)
+    this.doppelgangerCopies = {};
   }
 
   start() {
@@ -42,10 +44,11 @@ export class GameSession {
     this.initialCenter = initialCenter;
     this.currentRoles = [...initialPlayerRoles];
     this.currentCenter = [...initialCenter];
-    this.nightSteps = generateNightSteps(initialPlayerRoles);
+    this.nightSteps = this.computeNightSteps();
     this.stepIndex = -1;
     this.votes = {};
     this.result = null;
+    this.doppelgangerCopies = {};
 
     this.room.players.forEach((p, idx) => {
       const payload = { role: this.initialRoles[idx], playerIdx: idx };
@@ -57,6 +60,25 @@ export class GameSession {
     this.broadcastRoomState();
 
     setTimeout(() => this.nextStep(), 3000);
+  }
+
+  // 算出所有夜晚步骤：先化身幽灵（如有），再根据当前角色生成其余
+  computeNightSteps() {
+    const steps = [];
+    const doppelgangers = [];
+    this.initialRoles.forEach((r, i) => { if (r === 'doppelganger') doppelgangers.push(i); });
+    if (doppelgangers.length > 0) {
+      steps.push({ kind: 'doppelganger_choose', role: 'doppelganger', players: doppelgangers });
+    }
+    steps.push(...generateNightSteps(this.currentRoles));
+    return steps;
+  }
+
+  // 化身复制后调用：用更新过的 currentRoles 重新生成"剩余"的夜晚步骤
+  regenerateRemainingSteps() {
+    const before = this.nightSteps.slice(0, this.stepIndex + 1);
+    const after = generateNightSteps(this.currentRoles);
+    this.nightSteps = [...before, ...after];
   }
 
   nextStep() {
@@ -93,6 +115,8 @@ export class GameSession {
 
   buildInitialPayload(step, playerIdx) {
     switch (step.kind) {
+      case 'doppelganger_choose':
+        return { event: 'night_prompt', payload: { kind: 'doppelganger_choose' } };
       case 'werewolf_see': {
         const others = step.players
           .filter(i => i !== playerIdx)
@@ -102,10 +126,11 @@ export class GameSession {
       case 'lone_wolf_peek':
         return { event: 'night_prompt', payload: { kind: 'lone_wolf_peek' } };
       case 'minion_see': {
-        const werewolves = this.findInitial('werewolf').map(i => ({
-          idx: i, nickname: this.room.players[i].nickname,
-        }));
-        return { event: 'night_reveal', payload: { kind: 'minion_see', werewolves } };
+        // 用 currentRoles，因为化身-狼人也算狼人
+        const werewolves = [];
+        this.currentRoles.forEach((r, i) => { if (r === 'werewolf') werewolves.push(i); });
+        const list = werewolves.map(i => ({ idx: i, nickname: this.room.players[i].nickname }));
+        return { event: 'night_reveal', payload: { kind: 'minion_see', werewolves: list } };
       }
       case 'mason_see': {
         const others = step.players
@@ -128,12 +153,6 @@ export class GameSession {
     }
   }
 
-  findInitial(roleId) {
-    const r = [];
-    this.initialRoles.forEach((role, i) => { if (role === roleId) r.push(i); });
-    return r;
-  }
-
   handleAction(playerIdx, payload) {
     const step = this.nightSteps[this.stepIndex];
     if (!step) return false;
@@ -142,8 +161,24 @@ export class GameSession {
     const N = this.room.players.length;
     const player = this.room.players[playerIdx];
     let reveal = null;
+    let needRegenerate = false;
 
     switch (step.kind) {
+      case 'doppelganger_choose': {
+        const t = payload?.target;
+        if (typeof t !== 'number' || t === playerIdx || t < 0 || t >= N) return false;
+        const copiedRole = this.currentRoles[t];
+        this.currentRoles[playerIdx] = copiedRole;
+        this.doppelgangerCopies[playerIdx] = copiedRole;
+        reveal = {
+          kind: 'doppelganger_reveal',
+          target: t,
+          targetNickname: this.room.players[t].nickname,
+          copiedRole,
+        };
+        needRegenerate = true;
+        break;
+      }
       case 'lone_wolf_peek': {
         const c = payload?.centerIdx;
         if (typeof c !== 'number' || c < 0 || c > 2) return false;
@@ -217,6 +252,9 @@ export class GameSession {
 
     player.privateLog.push({ event: 'night_reveal', payload: reveal });
     this.emitPrivate(player.id, 'night_reveal', reveal);
+
+    if (needRegenerate) this.regenerateRemainingSteps();
+
     return true;
   }
 
@@ -290,13 +328,13 @@ export class GameSession {
       killed,
       hunterChain,
       winners,
+      doppelgangerCopies: this.doppelgangerCopies,
     };
 
     this.result = payload;
     this.io.to(this.room.code).emit('result', payload);
     this.broadcastRoomState();
 
-    // 异步存到数据库（不阻塞，失败不影响游戏）
     saveGameRecord({
       roomCode: this.room.code,
       config: this.room.config,

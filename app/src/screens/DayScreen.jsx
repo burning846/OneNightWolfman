@@ -98,6 +98,9 @@ export default function DayScreen() {
 
 function RevealSummary({ reveal }) {
   const r = reveal;
+  if (r.kind === 'doppelganger_reveal') {
+    return <div className="list-item"><span>👻 复制了 {r.targetNickname}</span><span>{roleEmoji(r.copiedRole)} {roleName(r.copiedRole)}</span></div>;
+  }
   if (r.kind === 'werewolf_see') {
     const names = r.others.map(o => o.nickname).join('、');
     return <div className="list-item"><span>🐺 同伴狼人</span><span className="text-muted">{names || '独狼'}</span></div>;

@@ -4,6 +4,7 @@ import { roleEmoji, roleName } from '../game/engine.js';
 import NightAction from './NightAction.jsx';
 
 const STEP_DESC = {
+  doppelganger_choose: '化身幽灵复制其他玩家角色',
   werewolf_see: '狼人睁眼互相辨认',
   lone_wolf_peek: '独狼查看一张中央底牌',
   minion_see: '爪牙睁眼看狼人',

@@ -3,24 +3,15 @@ import { useGame } from '../GameContext.jsx';
 import { ROLES } from '../game/roles.js';
 import { roleEmoji, roleName } from '../game/engine.js';
 
-/**
- * 夜晚阶段的私密 UI：
- *  - 如果有 pendingReveal，展示揭示信息（"我已知晓"）
- *  - 否则如果有 nightPrompt，展示动作选择 UI
- *  - 否则展示 "等待 XX 完成行动"
- */
 export default function NightAction() {
   const { state, api } = useGame();
 
   if (state.pendingReveal) {
     return <RevealPanel reveal={state.pendingReveal} onDone={api.nightDone} />;
   }
-
   if (state.nightPrompt) {
     return <PromptPanel />;
   }
-
-  // 没有 prompt 也没有 reveal → 不是当前阶段的当事人
   if (state.nightStep) {
     return (
       <div className="card col text-center" style={{ gap: 8 }}>
@@ -33,9 +24,6 @@ export default function NightAction() {
   return null;
 }
 
-// ============================================================
-// Reveal panel — 显示揭示给当前玩家的私密信息
-// ============================================================
 function RevealPanel({ reveal, onDone }) {
   return (
     <div className="card col" style={{ gap: 12 }}>
@@ -50,6 +38,18 @@ function RevealPanel({ reveal, onDone }) {
 
 function RevealContent({ reveal }) {
   switch (reveal.kind) {
+    case 'doppelganger_reveal':
+      return (
+        <div className="col text-center" style={{ gap: 8 }}>
+          <div className="kicker">你复制了 {reveal.targetNickname} 的角色</div>
+          <div style={{ fontSize: 48 }}>{roleEmoji(reveal.copiedRole)}</div>
+          <div className="h2" style={{ margin: 0 }}>{roleName(reveal.copiedRole)}</div>
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            接下来你将按这个角色行动 + 结算。
+          </div>
+        </div>
+      );
+
     case 'werewolf_see':
       return (
         <div className="col" style={{ gap: 8 }}>
@@ -195,9 +195,6 @@ function RevealContent({ reveal }) {
   }
 }
 
-// ============================================================
-// Prompt panel — 需要玩家做出选择的情况
-// ============================================================
 function PromptPanel() {
   const { state, api } = useGame();
   const prompt = state.nightPrompt;
@@ -205,6 +202,20 @@ function PromptPanel() {
   const myIdx = state.myPlayerIdx;
 
   switch (prompt.kind) {
+    case 'doppelganger_choose':
+      return (
+        <PlayerChoice
+          title="👻 化身幽灵 - 复制角色"
+          desc="选一名其他玩家，你将变成他/她的角色（并按那个角色之后行动）"
+          submitLabel="复制"
+          count={1}
+          excludeSelf
+          onSubmit={(targets) => api.nightAction({ target: targets[0] })}
+          players={room.players}
+          myIdx={myIdx}
+        />
+      );
+
     case 'lone_wolf_peek':
       return (
         <CenterCardChoice
@@ -342,7 +353,7 @@ function SeerChoice() {
   const { state, api } = useGame();
   const room = state.roomState;
   const myIdx = state.myPlayerIdx;
-  const [mode, setMode] = useState('player'); // 'player' | 'center'
+  const [mode, setMode] = useState('player');
   const [picked, setPicked] = useState([]);
 
   const toggle = (idx) => {
@@ -376,15 +387,11 @@ function SeerChoice() {
         <button
           className={`btn ${mode === 'player' ? 'btn-primary' : ''}`}
           onClick={() => { setMode('player'); setPicked([]); }}
-        >
-          查看玩家牌
-        </button>
+        >查看玩家牌</button>
         <button
           className={`btn ${mode === 'center' ? 'btn-primary' : ''}`}
           onClick={() => { setMode('center'); setPicked([]); }}
-        >
-          查看 2 张底牌
-        </button>
+        >查看 2 张底牌</button>
       </div>
 
       {mode === 'player' ? (
