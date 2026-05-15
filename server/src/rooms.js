@@ -180,6 +180,7 @@ export function deleteRoom(code) {
   rooms.delete(String(code));
 }
 
+// .unref() 让这个定时器不阻止 Node 进程退出（测试时尤其重要）
 setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms.entries()) {
@@ -189,4 +190,4 @@ setInterval(() => {
       console.log('[wolf] cleaned empty room', code);
     }
   }
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();

@@ -6,7 +6,18 @@ import {
   determineWinners,
 } from './engine.js';
 import { LOBBY_GRACE_MS } from './rooms.js';
-import { saveGameRecord } from './auth.js';
+
+// auth.js 用运行时动态导入，让 game.js 在 bcryptjs / jsonwebtoken 未装时也能加载
+async function trySaveGameRecord(payload) {
+  try {
+    const { saveGameRecord } = await import('./auth.js');
+    await saveGameRecord(payload);
+  } catch (e) {
+    if (e?.code !== 'ERR_MODULE_NOT_FOUND') {
+      console.error('[wolf] save game record failed', e);
+    }
+  }
+}
 
 const STEP_TIMEOUT_MS = 90 * 1000;
 const VOTE_TIMEOUT_MS = 60 * 1000;
@@ -29,13 +40,11 @@ export class GameSession {
     this.dayEndsAt = null;
     this.voteEndsAt = null;
     this.result = null;
-    // 化身复制的角色 (仅作为揭示信息记录，不影响逻辑)
     this.doppelgangerCopies = {};
   }
 
   start() {
     this.room.cancelAllRemovals();
-
     const { initialPlayerRoles, initialCenter } = dealCards(
       this.room.config.selectedRoles,
       this.room.players.length
@@ -58,11 +67,9 @@ export class GameSession {
 
     this.room.phase = 'night';
     this.broadcastRoomState();
-
     setTimeout(() => this.nextStep(), 3000);
   }
 
-  // 算出所有夜晚步骤：先化身幽灵（如有），再根据当前角色生成其余
   computeNightSteps() {
     const steps = [];
     const doppelgangers = [];
@@ -74,7 +81,6 @@ export class GameSession {
     return steps;
   }
 
-  // 化身复制后调用：用更新过的 currentRoles 重新生成"剩余"的夜晚步骤
   regenerateRemainingSteps() {
     const before = this.nightSteps.slice(0, this.stepIndex + 1);
     const after = generateNightSteps(this.currentRoles);
@@ -85,13 +91,10 @@ export class GameSession {
     this.clearStepTimer();
     this.stepIndex += 1;
     this.completed = new Set();
-
     if (this.stepIndex >= this.nightSteps.length) {
       return this.startDay();
     }
-
     const step = this.nightSteps[this.stepIndex];
-
     this.io.to(this.room.code).emit('night_step', {
       stepIndex: this.stepIndex,
       totalSteps: this.nightSteps.length,
@@ -99,7 +102,6 @@ export class GameSession {
       kind: step.kind,
       actorCount: step.players.length,
     });
-
     for (const playerIdx of step.players) {
       const player = this.room.players[playerIdx];
       if (!player) continue;
@@ -109,7 +111,6 @@ export class GameSession {
         this.emitPrivate(player.id, msg.event, msg.payload);
       }
     }
-
     this.stepTimer = setTimeout(() => this.nextStep(), STEP_TIMEOUT_MS);
   }
 
@@ -126,7 +127,6 @@ export class GameSession {
       case 'lone_wolf_peek':
         return { event: 'night_prompt', payload: { kind: 'lone_wolf_peek' } };
       case 'minion_see': {
-        // 用 currentRoles，因为化身-狼人也算狼人
         const werewolves = [];
         this.currentRoles.forEach((r, i) => { if (r === 'werewolf') werewolves.push(i); });
         const list = werewolves.map(i => ({ idx: i, nickname: this.room.players[i].nickname }));
@@ -157,7 +157,6 @@ export class GameSession {
     const step = this.nightSteps[this.stepIndex];
     if (!step) return false;
     if (!step.players.includes(playerIdx)) return false;
-
     const N = this.room.players.length;
     const player = this.room.players[playerIdx];
     let reveal = null;
@@ -252,9 +251,7 @@ export class GameSession {
 
     player.privateLog.push({ event: 'night_reveal', payload: reveal });
     this.emitPrivate(player.id, 'night_reveal', reveal);
-
     if (needRegenerate) this.regenerateRemainingSteps();
-
     return true;
   }
 
@@ -335,12 +332,12 @@ export class GameSession {
     this.io.to(this.room.code).emit('result', payload);
     this.broadcastRoomState();
 
-    saveGameRecord({
+    trySaveGameRecord({
       roomCode: this.room.code,
       config: this.room.config,
       players: this.room.players.map(p => ({ userId: p.userId, nickname: p.nickname })),
       result: payload,
-    }).catch(e => console.error('[wolf] save game record failed', e));
+    });
   }
 
   resetToLobby() {
