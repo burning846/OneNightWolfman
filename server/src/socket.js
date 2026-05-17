@@ -145,7 +145,7 @@ export function handleConnection(io, socket) {
     io.to(result.room.code).emit('room_state', result.room.toPublicState());
   });
 
-  socket.on('update_config', ({ selectedRoles, discussionSeconds } = {}, cb) => {
+  socket.on('update_config', ({ selectedRoles, discussionSeconds, nightStepSeconds } = {}, cb) => {
     const room = getRoom(socket.data.roomCode);
     if (!room) return ackError(cb, '房间不存在');
     if (room.hostId !== socket.data.playerId) return ackError(cb, '只有房主可以修改');
@@ -160,6 +160,9 @@ export function handleConnection(io, socket) {
     }
     if (typeof discussionSeconds === 'number') {
       room.config.discussionSeconds = Math.max(60, Math.min(900, Math.floor(discussionSeconds)));
+    }
+    if (typeof nightStepSeconds === 'number') {
+      room.config.nightStepSeconds = Math.max(5, Math.min(120, Math.floor(nightStepSeconds)));
     }
     io.to(room.code).emit('room_state', room.toPublicState());
     ackOk(cb);

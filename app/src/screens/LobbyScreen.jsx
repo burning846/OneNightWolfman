@@ -13,7 +13,6 @@ export default function LobbyScreen() {
   const required = playerCount + 3;
   const totalDeck = useMemo(() => deckSize(room.config.selectedRoles), [room.config.selectedRoles]);
   const error = validateConfig(room.config.selectedRoles, playerCount);
-
   const [copied, setCopied] = useState(false);
 
   const setCount = (roleId, n) => {
@@ -22,12 +21,17 @@ export default function LobbyScreen() {
     const v = Math.max(0, Math.min(10, n));
     if (v === 0) delete next[roleId];
     else next[roleId] = v;
-    api.updateConfig(next, undefined);
+    api.updateConfig(next, undefined, undefined);
   };
 
   const setDiscussion = (sec) => {
     if (!iAmHost) return;
-    api.updateConfig(undefined, sec);
+    api.updateConfig(undefined, sec, undefined);
+  };
+
+  const setNightStep = (sec) => {
+    if (!iAmHost) return;
+    api.updateConfig(undefined, undefined, sec);
   };
 
   const start = async () => {
@@ -78,9 +82,7 @@ export default function LobbyScreen() {
           ))}
         </div>
         {playerCount < 3 && (
-          <div className="text-muted" style={{ fontSize: 13 }}>
-            至少需要 3 名玩家才能开始
-          </div>
+          <div className="text-muted" style={{ fontSize: 13 }}>至少需要 3 名玩家才能开始</div>
         )}
       </div>
 
@@ -100,15 +102,9 @@ export default function LobbyScreen() {
                 <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
                   <span className="emoji">{r.emoji}</span>
                   <div className="counter">
-                    <button
-                      onClick={() => setCount(r.id, cnt - 1)}
-                      disabled={!iAmHost || cnt <= 0}
-                    >−</button>
+                    <button onClick={() => setCount(r.id, cnt - 1)} disabled={!iAmHost || cnt <= 0}>−</button>
                     <span className="value">{cnt}</span>
-                    <button
-                      onClick={() => setCount(r.id, cnt + 1)}
-                      disabled={!iAmHost}
-                    >+</button>
+                    <button onClick={() => setCount(r.id, cnt + 1)} disabled={!iAmHost}>+</button>
                   </div>
                 </div>
                 <div className="role-name">{r.name}</div>
@@ -119,9 +115,7 @@ export default function LobbyScreen() {
         </div>
 
         {!iAmHost && (
-          <div className="text-muted" style={{ fontSize: 13 }}>
-            仅房主可以调整配置
-          </div>
+          <div className="text-muted" style={{ fontSize: 13 }}>仅房主可以调整配置</div>
         )}
       </div>
 
@@ -136,6 +130,26 @@ export default function LobbyScreen() {
               onClick={() => setDiscussion(s)}
             >
               {s / 60} 分钟
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="card col">
+        <h2 className="h2">夜晚每步时长</h2>
+        <div className="text-muted" style={{ fontSize: 12 }}>
+          每个角色阶段固定走这么久，反作弊（防止从跳过环节推断中央底牌）。
+          超时未行动 → 系统随机替你选。
+        </div>
+        <div className="grid grid-cols-3">
+          {[15, 25, 40].map((s) => (
+            <button
+              key={s}
+              className={`btn ${(room.config.nightStepSeconds || 25) === s ? 'btn-primary' : ''}`}
+              disabled={!iAmHost}
+              onClick={() => setNightStep(s)}
+            >
+              {s} 秒
             </button>
           ))}
         </div>

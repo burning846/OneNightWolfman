@@ -1,4 +1,4 @@
-// 纯函数游戏逻辑：洗牌、发牌、夜晚步骤生成、计票、胜负判定
+// 纯函数游戏逻辑：洗牌、发牌、夜晚步骤生成、计票、胜负判定、随机动作
 import { ROLES } from './roles.js';
 
 function shuffle(arr) {
@@ -38,32 +38,69 @@ export function dealCards(selectedRoles, playerCount) {
   };
 }
 
-// 生成夜晚步骤队列。kind 决定客户端会渲染什么样的私密 UI。
-export function generateNightSteps(initialRoles) {
+// 生成夜晚步骤队列
+// - selectedRoles: 房间配置（决定"哪些步骤存在"，即使角色被埋在中央底牌也照走）
+// - currentRoles: 玩家当前角色（决定"谁在这个步骤里行动"）
+export function generateNightSteps(selectedRoles, currentRoles) {
   const steps = [];
   const byRole = {};
-  initialRoles.forEach((r, i) => { (byRole[r] ||= []).push(i); });
+  currentRoles.forEach((r, i) => { (byRole[r] ||= []).push(i); });
 
-  const push = (kind, role, extra = {}) => {
-    steps.push({ kind, role, players: byRole[role] || [], ...extra });
-  };
+  const has = (id) => (selectedRoles[id] || 0) > 0;
+  const players = (id) => byRole[id] || [];
 
-  if (byRole.werewolf?.length) {
-    push('werewolf_see', 'werewolf');
-    if (byRole.werewolf.length === 1) push('lone_wolf_peek', 'werewolf');
+  // 注意：化身幽灵步骤由 game.js 处理（需要在所有步骤之前，且会触发步骤重算）
+  if (has('werewolf')) {
+    steps.push({ kind: 'werewolf_see', role: 'werewolf', players: players('werewolf') });
+    // 独狼只有恰好 1 个狼人时才有真实当事人；2+ 狼或 0 狼都跑空 timer
+    const lone = players('werewolf').length === 1 ? players('werewolf') : [];
+    steps.push({ kind: 'lone_wolf_peek', role: 'werewolf', players: lone });
   }
-  if (byRole.minion?.length) push('minion_see', 'minion');
-  if (byRole.mason?.length) push('mason_see', 'mason');
-  if (byRole.seer?.length) push('seer_choose', 'seer');
-  if (byRole.robber?.length) push('robber_choose', 'robber');
-  if (byRole.troublemaker?.length) push('troublemaker_choose', 'troublemaker');
-  if (byRole.drunk?.length) push('drunk_choose', 'drunk');
-  if (byRole.insomniac?.length) push('insomniac_see', 'insomniac');
+  if (has('minion'))       steps.push({ kind: 'minion_see',          role: 'minion',       players: players('minion') });
+  if (has('mason'))        steps.push({ kind: 'mason_see',           role: 'mason',        players: players('mason') });
+  if (has('seer'))         steps.push({ kind: 'seer_choose',         role: 'seer',         players: players('seer') });
+  if (has('robber'))       steps.push({ kind: 'robber_choose',       role: 'robber',       players: players('robber') });
+  if (has('troublemaker')) steps.push({ kind: 'troublemaker_choose', role: 'troublemaker', players: players('troublemaker') });
+  if (has('drunk'))        steps.push({ kind: 'drunk_choose',        role: 'drunk',        players: players('drunk') });
+  if (has('insomniac'))    steps.push({ kind: 'insomniac_see',       role: 'insomniac',    players: players('insomniac') });
 
   return steps;
 }
 
-function tallyVotes(votes, playerCount) {
+// 超时未行动时由服务端代生成的随机动作
+// kind: 步骤类型；playerIdx: 当事人；N: 玩家总数
+export function randomActionFor(kind, playerIdx, N) {
+  const others = [];
+  for (let i = 0; i < N; i++) if (i !== playerIdx) others.push(i);
+  const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const pickTwo = (arr) => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return [a[0], a[1]];
+  };
+
+  switch (kind) {
+    case 'doppelganger_choose':
+    case 'robber_choose':
+      return { target: pickOne(others) };
+    case 'lone_wolf_peek':
+    case 'drunk_choose':
+      return { centerIdx: pickOne([0, 1, 2]) };
+    case 'seer_choose':
+      if (Math.random() < 0.5) return { type: 'player', target: pickOne(others) };
+      return { type: 'center', targets: pickTwo([0, 1, 2]) };
+    case 'troublemaker_choose':
+      return { targets: pickTwo(others) };
+    default:
+      // 纯展示性步骤（werewolf_see / minion_see / mason_see / insomniac_see）无需动作
+      return null;
+  }
+}
+
+export function tallyVotes(votes, playerCount) {
   const counts = new Array(playerCount).fill(0);
   for (const v of Object.values(votes)) {
     if (typeof v === 'number' && v >= 0 && v < playerCount) counts[v]++;

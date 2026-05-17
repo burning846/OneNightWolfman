@@ -2,12 +2,12 @@
 import {
   dealCards,
   generateNightSteps,
+  randomActionFor,
   resolveKilled,
   determineWinners,
 } from './engine.js';
 import { LOBBY_GRACE_MS } from './rooms.js';
 
-// auth.js 用运行时动态导入，让 game.js 在 bcryptjs / jsonwebtoken 未装时也能加载
 async function trySaveGameRecord(payload) {
   try {
     const { saveGameRecord } = await import('./auth.js');
@@ -19,7 +19,7 @@ async function trySaveGameRecord(payload) {
   }
 }
 
-const STEP_TIMEOUT_MS = 90 * 1000;
+const DEFAULT_NIGHT_STEP_SECONDS = 25;
 const VOTE_TIMEOUT_MS = 60 * 1000;
 
 export class GameSession {
@@ -39,8 +39,14 @@ export class GameSession {
     this.votes = {};
     this.dayEndsAt = null;
     this.voteEndsAt = null;
+    this.stepEndsAt = null;
     this.result = null;
     this.doppelgangerCopies = {};
+  }
+
+  nightStepMs() {
+    const s = Number(this.room.config?.nightStepSeconds) || DEFAULT_NIGHT_STEP_SECONDS;
+    return Math.max(5, Math.min(120, s)) * 1000;
   }
 
   start() {
@@ -72,18 +78,20 @@ export class GameSession {
 
   computeNightSteps() {
     const steps = [];
-    const doppelgangers = [];
-    this.initialRoles.forEach((r, i) => { if (r === 'doppelganger') doppelgangers.push(i); });
-    if (doppelgangers.length > 0) {
-      steps.push({ kind: 'doppelganger_choose', role: 'doppelganger', players: doppelgangers });
+    // 化身幽灵：只要选了就有步骤，即使牌在中央底牌也走这一阶段
+    const doppelgangerSelected = (this.room.config.selectedRoles?.doppelganger || 0) > 0;
+    if (doppelgangerSelected) {
+      const players = [];
+      this.initialRoles.forEach((r, i) => { if (r === 'doppelganger') players.push(i); });
+      steps.push({ kind: 'doppelganger_choose', role: 'doppelganger', players });
     }
-    steps.push(...generateNightSteps(this.currentRoles));
+    steps.push(...generateNightSteps(this.room.config.selectedRoles, this.currentRoles));
     return steps;
   }
 
   regenerateRemainingSteps() {
     const before = this.nightSteps.slice(0, this.stepIndex + 1);
-    const after = generateNightSteps(this.currentRoles);
+    const after = generateNightSteps(this.room.config.selectedRoles, this.currentRoles);
     this.nightSteps = [...before, ...after];
   }
 
@@ -91,17 +99,27 @@ export class GameSession {
     this.clearStepTimer();
     this.stepIndex += 1;
     this.completed = new Set();
+
     if (this.stepIndex >= this.nightSteps.length) {
+      this.stepEndsAt = null;
       return this.startDay();
     }
+
     const step = this.nightSteps[this.stepIndex];
+    const ms = this.nightStepMs();
+    this.stepEndsAt = Date.now() + ms;
+
+    // 公开广播：不暴露 actorCount，所有步骤对外观感一致（反作弊）
     this.io.to(this.room.code).emit('night_step', {
       stepIndex: this.stepIndex,
       totalSteps: this.nightSteps.length,
       role: step.role,
       kind: step.kind,
-      actorCount: step.players.length,
+      endsAt: this.stepEndsAt,
     });
+    this.broadcastRoomState();
+
+    // 私发提示/揭示给真正的当事人
     for (const playerIdx of step.players) {
       const player = this.room.players[playerIdx];
       if (!player) continue;
@@ -111,7 +129,27 @@ export class GameSession {
         this.emitPrivate(player.id, msg.event, msg.payload);
       }
     }
-    this.stepTimer = setTimeout(() => this.nextStep(), STEP_TIMEOUT_MS);
+
+    // 时间到 → 给未完成的当事人随机分配动作 → 推进下一步
+    this.stepTimer = setTimeout(() => this.handleStepTimeout(), ms);
+  }
+
+  handleStepTimeout() {
+    const step = this.nightSteps[this.stepIndex];
+    if (!step) return this.nextStep();
+    const N = this.room.players.length;
+    let regenerateNeeded = false;
+    for (const playerIdx of step.players) {
+      if (this.completed.has(playerIdx)) continue;
+      const action = randomActionFor(step.kind, playerIdx, N);
+      if (action !== null) {
+        // 用 handleAction 走相同的副作用（修改 currentRoles、发 reveal、必要时重生成步骤）
+        const ok = this.handleAction(playerIdx, action, /*skipReveal*/ false);
+        if (ok && step.kind === 'doppelganger_choose') regenerateNeeded = true;
+      }
+    }
+    // 给前端一点点时间渲染最后的 reveal 再推进
+    setTimeout(() => this.nextStep(), 500);
   }
 
   buildInitialPayload(step, playerIdx) {
@@ -153,10 +191,12 @@ export class GameSession {
     }
   }
 
-  handleAction(playerIdx, payload) {
+  // skipReveal: 内部超时随机调用时也走 reveal（玩家会知道系统帮他选了什么）
+  handleAction(playerIdx, payload, skipReveal = false) {
     const step = this.nightSteps[this.stepIndex];
     if (!step) return false;
     if (!step.players.includes(playerIdx)) return false;
+    if (this.completed.has(playerIdx)) return false;  // 不能重复行动
     const N = this.room.players.length;
     const player = this.room.players[playerIdx];
     let reveal = null;
@@ -181,11 +221,7 @@ export class GameSession {
       case 'lone_wolf_peek': {
         const c = payload?.centerIdx;
         if (typeof c !== 'number' || c < 0 || c > 2) return false;
-        reveal = {
-          kind: 'lone_wolf_peek_reveal',
-          centerIdx: c,
-          role: this.currentCenter[c],
-        };
+        reveal = { kind: 'lone_wolf_peek_reveal', centerIdx: c, role: this.currentCenter[c] };
         break;
       }
       case 'seer_choose': {
@@ -249,27 +285,29 @@ export class GameSession {
         return false;
     }
 
-    player.privateLog.push({ event: 'night_reveal', payload: reveal });
-    this.emitPrivate(player.id, 'night_reveal', reveal);
+    this.completed.add(playerIdx);  // 标记已完成（防重）
+    if (!skipReveal) {
+      player.privateLog.push({ event: 'night_reveal', payload: reveal });
+      this.emitPrivate(player.id, 'night_reveal', reveal);
+    }
     if (needRegenerate) this.regenerateRemainingSteps();
     return true;
   }
 
+  // 玩家点"我已知晓"。仅作为标记，不会提前推进（反作弊：所有步骤同长）
   handleDone(playerIdx) {
     const step = this.nightSteps[this.stepIndex];
     if (!step) return;
     if (!step.players.includes(playerIdx)) return;
+    // 纯展示性步骤（无 action）也可以通过 handleDone 标记完成
     this.completed.add(playerIdx);
-    if (this.completed.size >= step.players.length) {
-      this.clearStepTimer();
-      this.stepTimer = setTimeout(() => this.nextStep(), 800);
-    }
   }
 
   startDay() {
     this.clearAllTimers();
     this.room.phase = 'day';
     this.dayEndsAt = Date.now() + this.room.config.discussionSeconds * 1000;
+    this.stepEndsAt = null;
     this.io.to(this.room.code).emit('day_phase', { endsAt: this.dayEndsAt });
     this.broadcastRoomState();
     this.dayTimer = setTimeout(

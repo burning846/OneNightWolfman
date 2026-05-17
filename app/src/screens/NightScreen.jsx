@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useGame } from '../GameContext.jsx';
 import { ROLES } from '../game/roles.js';
 import { roleEmoji, roleName } from '../game/engine.js';
@@ -15,6 +16,25 @@ const STEP_DESC = {
   drunk_choose: '酒鬼与中央底牌交换',
   insomniac_see: '失眠者查看自己最终身份',
 };
+
+function StepCountdown({ endsAt }) {
+  const [remaining, setRemaining] = useState(() =>
+    endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0
+  );
+  useEffect(() => {
+    if (!endsAt) return;
+    const tick = () => setRemaining(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [endsAt]);
+  if (!endsAt) return null;
+  return (
+    <div className="kicker" style={{ fontSize: 14, color: 'var(--accent)' }}>
+      ⏱ 剩余 {remaining} 秒
+    </div>
+  );
+}
 
 export default function NightScreen() {
   const { state, api } = useGame();
@@ -64,10 +84,9 @@ export default function NightScreen() {
           <div className="kicker">当前阶段</div>
           <div style={{ fontSize: 40 }}>{ROLES[step.role]?.emoji}</div>
           <div className="h2" style={{ margin: 0 }}>{STEP_DESC[step.kind] || roleName(step.role)}</div>
-          <div className="text-muted" style={{ fontSize: 13 }}>
-            {step.actorCount > 0
-              ? `${step.actorCount} 人参与此阶段`
-              : '此阶段无人参与，将自动跳过'}
+          <StepCountdown endsAt={state.roomState?.stepEndsAt} />
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            未行动玩家时间到后由系统随机选择
           </div>
         </div>
       )}

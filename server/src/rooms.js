@@ -25,6 +25,7 @@ export class Room {
     this.config = {
       selectedRoles: { werewolf: 2, seer: 1, robber: 1, troublemaker: 1, villager: 1 },
       discussionSeconds: 300,
+      nightStepSeconds: 25,   // 每个夜晚步骤的固定时长（反作弊：不会因玩家提前完成而缩短）
     };
     this.game = null;
     this.lastActivityAt = Date.now();
@@ -118,6 +119,7 @@ export class Room {
       ...base,
       dayEndsAt: this.game.dayEndsAt ?? null,
       voteEndsAt: this.game.voteEndsAt ?? null,
+      stepEndsAt: this.game.stepEndsAt ?? null,
       voteProgress:
         this.phase === 'vote'
           ? {
@@ -180,7 +182,6 @@ export function deleteRoom(code) {
   rooms.delete(String(code));
 }
 
-// .unref() 让这个定时器不阻止 Node 进程退出（测试时尤其重要）
 setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms.entries()) {
