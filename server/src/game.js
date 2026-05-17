@@ -73,7 +73,7 @@ export class GameSession {
 
     this.room.phase = 'night';
     this.broadcastRoomState();
-    setTimeout(() => this.nextStep(), 3000);
+    setTimeout(() => this.nextStep(), 3000).unref();
   }
 
   computeNightSteps() {
@@ -132,6 +132,7 @@ export class GameSession {
 
     // 时间到 → 给未完成的当事人随机分配动作 → 推进下一步
     this.stepTimer = setTimeout(() => this.handleStepTimeout(), ms);
+    this.stepTimer.unref?.();
   }
 
   handleStepTimeout() {
@@ -149,7 +150,7 @@ export class GameSession {
       }
     }
     // 给前端一点点时间渲染最后的 reveal 再推进
-    setTimeout(() => this.nextStep(), 500);
+    setTimeout(() => this.nextStep(), 500).unref();
   }
 
   buildInitialPayload(step, playerIdx) {
@@ -314,6 +315,7 @@ export class GameSession {
       () => this.startVote(),
       this.room.config.discussionSeconds * 1000
     );
+    this.dayTimer.unref?.();
   }
 
   skipToVote() {
@@ -328,6 +330,7 @@ export class GameSession {
     this.io.to(this.room.code).emit('vote_phase', { endsAt: this.voteEndsAt });
     this.broadcastRoomState();
     this.voteTimer = setTimeout(() => this.endVote(), VOTE_TIMEOUT_MS);
+    this.voteTimer.unref?.();
   }
 
   handleVote(playerIdx, targetIdx) {
@@ -341,7 +344,7 @@ export class GameSession {
     });
     if (Object.keys(this.votes).length >= N) {
       this.clearAllTimers();
-      setTimeout(() => this.endVote(), 1000);
+      setTimeout(() => this.endVote(), 1000).unref();
     }
     return true;
   }
